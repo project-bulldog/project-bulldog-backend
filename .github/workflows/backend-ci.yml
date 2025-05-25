@@ -28,7 +28,7 @@ jobs:
         run: dotnet tool install -g dotnet-format
 
       - name: Verify code formatting
-        run: dotnet-format backend/codename-bulldog.sln --verify-no-changes
+        run: dotnet-format backend/codename-bulldog.sln --check
 
       - name: Run tests
         run: dotnet test backend/codename-bulldog.sln --no-build --verbosity normal
