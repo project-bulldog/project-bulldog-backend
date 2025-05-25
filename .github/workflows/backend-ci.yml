@@ -22,10 +22,13 @@ jobs:
         run: dotnet restore backend/codename-bulldog.sln
 
       - name: Build solution
-        run: dotnet build backend/codename-bulldog.sln --configuration Release --no-restore
+        run: dotnet build backend/codename-bulldog.sln --configuration Release
+
+      - name: Install dotnet-format tool
+        run: dotnet tool install -g dotnet-format
 
       - name: Verify code formatting
-        run: dotnet format backend/codename-bulldog.sln --verify-no-changes
+        run: dotnet-format backend/codename-bulldog.sln --check
 
       - name: Run tests
         run: dotnet test backend/codename-bulldog.sln --no-build --configuration Release --verbosity normal
