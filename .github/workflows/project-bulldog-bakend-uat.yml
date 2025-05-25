@@ -24,7 +24,7 @@ jobs:
           dotnet-version: "8.0"
 
       - name: Build with dotnet
-        run: dotnet build backend/codename-backend.sln --configuration Release
+        run: dotnet build backend/codename-bulldog.sln --configuration Release
 
       - name: dotnet publish
         run: dotnet publish backend/backend.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
