@@ -28,4 +28,4 @@ jobs:
         run: dotnet format backend/codename-bulldog.sln --verify-no-changes
 
       - name: Run tests
-        run: dotnet test backend/codename-bulldog.sln --no-build --verbosity normal
+        run: dotnet test backend/codename-bulldog.sln --no-build --configuration Release --verbosity normal
