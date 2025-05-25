@@ -1,0 +1,31 @@
+# Build results
+bin/
+obj/
+out/
+*.log
+*.exe
+*.dll
+
+# VS Code and tooling
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider / JetBrains
+.idea/
+
+# DotNet CLI
+*.cache
+
+# Secrets 
+appsettings.Development.json
+.env
+
+## OS files
+.DS_Store
+Thumbs.db
+
+## Test results
+TestResults/
