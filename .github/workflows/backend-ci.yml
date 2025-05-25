@@ -19,13 +19,13 @@ jobs:
           dotnet-version: "8.0.x"
 
       - name: Restore packages
-        run: dotnet restore
+        run: dotnet restore backend-suite/backend/codename-bulldog.sln
 
       - name: Build solution
-        run: dotnet build --configuration Release
+        run: dotnet build backend-suite/backend/codename-bulldog.sln --configuration Release --no-restore
 
       - name: Verify code formatting
-        run: dotnet format --verify-no-changes
+        run: dotnet format backend-suite/backend/codename-bulldog.sln --verify-no-changes
 
       - name: Run tests
-        run: dotnet test --no-build --verbosity normal
+        run: dotnet test backend-suite/backend/codename-bulldog.sln --no-build --verbosity normal
