@@ -1,0 +1,23 @@
+# .github/workflows/deploy-qa.yml
+
+name: Deploy to QA
+
+on:
+  push:
+    branches:
+      - qa
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/azure-deploy-template.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: qa
+      app_name: project-bulldog-backend-qa
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
+      AZURE_TENANT_ID: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}

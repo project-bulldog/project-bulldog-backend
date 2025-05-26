@@ -1,0 +1,21 @@
+name: Deploy to UAT
+
+on:
+  push:
+    branches:
+      - uat
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/azure-deploy-template.yml
+    permissions:
+      id-token: write
+      contents: read
+    with:
+      environment: uat
+      app_name: project-bulldog-backend-uat
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
+      AZURE_TENANT_ID: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
