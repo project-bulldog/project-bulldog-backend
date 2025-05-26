@@ -34,7 +34,7 @@ jobs:
 
       # Run code formatting check
       - name: Verify code formatting
-        run: dotnet format backend/codename-bulldog.sln --check
+        run: dotnet format backend/codename-bulldog.sln --verify-no-changes
 
       # Run tests
       - name: Run tests
