@@ -50,9 +50,9 @@ jobs:
 
       - name: Debug secrets (do not print values!)
         run: |
-            echo "Has client-id?   [${{ secrets.UAT_AZUREAPPSERVICE_CLIENTID != '' }}]"
-            echo "Has tenant-id?   [${{ secrets.UAT_AZUREAPPSERVICE_TENANTID != '' }}]"
-            echo "Has sub-id?      [${{ secrets.UAT_AZUREAPPSERVICE_SUBSCRIPTIONID != '' }}]"
+            echo "Has client-id?   [${{ secrets.AZUREAPPSERVICE_CLIENTID != '' }}]"
+            echo "Has tenant-id?   [${{ secrets.AZUREAPPSERVICE_TENANTID != '' }}]"
+            echo "Has sub-id?      [${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID != '' }}]"
 
 
       - name: Login to Azure
@@ -60,7 +60,7 @@ jobs:
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
-          subscription-id: ${{ secrets.UAT_AZUREAPPSERVICE_SUBSCRIPTIONID }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
 
       # ✅ DEBUG: Show Azure context and available Web Apps
       - name: Show current Azure account and app services
