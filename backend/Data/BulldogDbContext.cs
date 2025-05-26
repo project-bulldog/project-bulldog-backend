@@ -30,7 +30,7 @@ namespace backend.Data
                 .HasForeignKey(ai => ai.SummaryId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Relationship: User → Summaries
+            // Relationship: User â†’ Summaries
             modelBuilder.Entity<User>()
                 .HasMany(u => u.Summaries)
                 .WithOne(s => s.User)
