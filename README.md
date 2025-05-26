@@ -1,4 +1,5 @@
 ![Backend CI](https://github.com/Calathea-Z/project-bulldog-backend/actions/workflows/backend-ci.yml/badge.svg)
+![Code Style](https://github.com/your-org/your-repo/actions/workflows/format.yml/badge.svg)
 ![Top Language](https://img.shields.io/github/languages/top/Calathea-Z/project-bulldog-backend)
 ![Last Commit](https://img.shields.io/github/last-commit/Calathea-Z/project-bulldog-backend)
 

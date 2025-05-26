@@ -24,25 +24,18 @@ jobs:
       - name: Build solution
         run: dotnet build backend/codename-bulldog.sln --configuration Release
 
-      # Ensure consistent formatter version with local dev machine
-      - name: Install dotnet-format tool
-        run: dotnet tool install -g dotnet-format --version 8.3.626607
-
-      # Make sure .NET tools are in PATH
-      - name: Add .NET tools to PATH
-        run: echo "$env:USERPROFILE\.dotnet\tools" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
-
-      # Diagnostic: Confirm SDK and tool versions
-      - name: Check .NET and format version
+      # Debug tool versions and line-ending behavior
+      - name: Log .NET and format versions + Git EOL info
         run: |
           dotnet --version
           dotnet format --version
           git config --get core.autocrlf
           git ls-files --eol
 
-      # Enforce consistent formatting
+      # Run code formatting check
       - name: Verify code formatting
         run: dotnet format backend/codename-bulldog.sln --check
 
+      # Run tests
       - name: Run tests
         run: dotnet test backend/codename-bulldog.sln --no-build --configuration Release --verbosity normal
