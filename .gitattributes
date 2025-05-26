@@ -1,0 +1,5 @@
+# Normalize line endings to LF
+*.cs text eol=lf
+
+# Enforce UTF-8 encoding without BOM
+*.cs text working-tree-encoding=UTF-8
