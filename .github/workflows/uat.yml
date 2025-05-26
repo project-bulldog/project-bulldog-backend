@@ -48,6 +48,13 @@ jobs:
         with:
           name: .net-app
 
+      - name: Debug secrets (do not print values!)
+        run: |
+            echo "Has client-id?   [${{ secrets.UAT_AZUREAPPSERVICE_CLIENTID != '' }}]"
+            echo "Has tenant-id?   [${{ secrets.UAT_AZUREAPPSERVICE_TENANTID != '' }}]"
+            echo "Has sub-id?      [${{ secrets.UAT_AZUREAPPSERVICE_SUBSCRIPTIONID != '' }}]"
+
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
