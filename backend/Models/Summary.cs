@@ -2,8 +2,8 @@
 {
     public class Summary
     {
-        public int Id { get; set; }   // PK
-        public Guid UserId { get; set; }  // FK → User
+        public int Id { get; set; }
+        public Guid UserId { get; set; }
         public required string OriginalText { get; set; }
         public required string SummaryText { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
