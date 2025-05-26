@@ -1,5 +1,5 @@
-# Normalize line endings to LF
+# Use LF for C# and config files
 *.cs text eol=lf
-
-# Enforce UTF-8 encoding without BOM
-*.cs text working-tree-encoding=UTF-8
+*.csproj text eol=lf
+*.sln text eol=lf
+*.json text eol=lf
