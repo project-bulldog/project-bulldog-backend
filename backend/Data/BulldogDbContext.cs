@@ -1,5 +1,5 @@
+﻿using backend.Models;
 using Microsoft.EntityFrameworkCore;
-using backend.Models; // Adjust this to match your actual namespace
 
 namespace backend.Data
 {
