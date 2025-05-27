@@ -1,7 +1,7 @@
-using backend.Data;
+using backend.Dtos;
 using backend.Models;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
@@ -9,35 +9,30 @@ namespace backend.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly BulldogDbContext _context;
+    private readonly IUserService _userService;
     private readonly ILogger<UsersController> _logger;
 
-    public UsersController(BulldogDbContext context, ILogger<UsersController> logger)
+    public UsersController(IUserService userService, ILogger<UsersController> logger)
     {
-        _context = context;
+        _userService = userService;
         _logger = logger;
     }
 
     // GET: api/users
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+    public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
     {
         _logger.LogInformation("Fetching all users");
-        return await _context.Users
-            .Include(u => u.Summaries)
-            .ThenInclude(s => s.ActionItems)
-            .ToListAsync();
+        var users = await _userService.GetUsersAsync();
+        return Ok(users);
     }
 
     // GET: api/users/{id}
     [HttpGet("{id}")]
-    public async Task<ActionResult<User>> GetUser(Guid id)
+    public async Task<ActionResult<UserDto>> GetUser(Guid id)
     {
         _logger.LogInformation("Fetching user with id {Id}", id);
-        var user = await _context.Users
-            .Include(u => u.Summaries)
-            .ThenInclude(s => s.ActionItems)
-            .FirstOrDefaultAsync(u => u.Id == id);
+        var user = await _userService.GetUserAsync(id);
 
         if (user == null)
         {
@@ -45,19 +40,16 @@ public class UsersController : ControllerBase
             return NotFound();
         }
 
-        return user;
+        return Ok(user);
     }
 
     // POST: api/users
     [HttpPost]
-    public async Task<ActionResult<User>> CreateUser(User user)
+    public async Task<ActionResult<UserDto>> CreateUser(User user)
     {
-        user.Id = Guid.NewGuid(); // Assign new GUID if client doesn't send it
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("User created with id {Id}", user.Id);
-        return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
+        var createdUser = await _userService.CreateUserAsync(user);
+        _logger.LogInformation("User created with id {Id}", createdUser.Id);
+        return CreatedAtAction(nameof(GetUser), new { id = createdUser.Id }, createdUser);
     }
 
     // PUT: api/users/{id}
@@ -70,24 +62,15 @@ public class UsersController : ControllerBase
             return BadRequest();
         }
 
-        _context.Entry(user).State = EntityState.Modified;
+        var updateResult = await _userService.UpdateUserAsync(id, user);
 
-        try
+        if (!updateResult)
         {
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("User with id {Id} updated successfully", id);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!_context.Users.Any(u => u.Id == id))
-            {
-                _logger.LogWarning("Update failed: user with id {Id} not found", id);
-                return NotFound();
-            }
-            _logger.LogError("Concurrency error occurred while updating user with id {Id}", id);
-            throw;
+            _logger.LogWarning("Update failed: user with id {Id} not found", id);
+            return NotFound();
         }
 
+        _logger.LogInformation("User with id {Id} updated successfully", id);
         return NoContent();
     }
 
@@ -96,15 +79,13 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteUser(Guid id)
     {
         _logger.LogInformation("Deleting user with id {Id}", id);
-        var user = await _context.Users.FindAsync(id);
-        if (user == null)
+        var deleteResult = await _userService.DeleteUserAsync(id);
+
+        if (!deleteResult)
         {
             _logger.LogWarning("Delete failed: user with id {Id} not found", id);
             return NotFound();
         }
-
-        _context.Users.Remove(user);
-        await _context.SaveChangesAsync();
 
         _logger.LogInformation("User with id {Id} deleted successfully", id);
         return NoContent();

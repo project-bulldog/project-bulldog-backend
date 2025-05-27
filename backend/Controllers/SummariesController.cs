@@ -1,7 +1,7 @@
-using backend.Data;
+using backend.Dtos;
 using backend.Models;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
@@ -9,37 +9,30 @@ namespace backend.Controllers;
 [Route("api/[controller]")]
 public class SummariesController : ControllerBase
 {
-    private readonly BulldogDbContext _context;
+    private readonly ISummaryService _summaryService;
     private readonly ILogger<SummariesController> _logger;
 
-    public SummariesController(BulldogDbContext context, ILogger<SummariesController> logger)
+    public SummariesController(ISummaryService summaryService, ILogger<SummariesController> logger)
     {
-        _context = context;
+        _summaryService = summaryService;
         _logger = logger;
     }
 
     // GET: api/summaries
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Summary>>> GetSummaries()
+    public async Task<ActionResult<IEnumerable<SummaryDto>>> GetSummaries()
     {
         _logger.LogInformation("Fetching all summaries");
-        return await _context.Summaries
-            .AsNoTracking()
-            .Include(s => s.ActionItems)
-            .Include(s => s.User)
-            .ToListAsync();
+        var summaries = await _summaryService.GetSummariesAsync();
+        return Ok(summaries);
     }
 
     // GET: api/summaries/{id}
     [HttpGet("{id}")]
-    public async Task<ActionResult<Summary>> GetSummary(int id)
+    public async Task<ActionResult<SummaryDto>> GetSummary(int id)
     {
         _logger.LogInformation("Fetching summary with id {Id}", id);
-        var summary = await _context.Summaries
-            .AsNoTracking()
-            .Include(s => s.ActionItems)
-            .Include(s => s.User)
-            .FirstOrDefaultAsync(s => s.Id == id);
+        var summary = await _summaryService.GetSummaryAsync(id);
 
         if (summary == null)
         {
@@ -47,19 +40,18 @@ public class SummariesController : ControllerBase
             return NotFound();
         }
 
-        return summary;
+        return Ok(summary);
     }
 
     // POST: api/summaries
     [HttpPost]
-    public async Task<ActionResult<Summary>> CreateSummary(Summary summary)
+    public async Task<ActionResult<SummaryDto>> CreateSummary(Summary summary)
     {
         _logger.LogInformation("Creating a new summary");
-        _context.Summaries.Add(summary);
-        await _context.SaveChangesAsync();
+        var createdSummary = await _summaryService.CreateSummaryAsync(summary);
 
-        _logger.LogInformation("Summary created with id {Id}", summary.Id);
-        return CreatedAtAction(nameof(GetSummary), new { id = summary.Id }, summary);
+        _logger.LogInformation("Summary created with id {Id}", createdSummary.Id);
+        return CreatedAtAction(nameof(GetSummary), new { id = createdSummary.Id }, createdSummary);
     }
 
     // PUT: api/summaries/{id}
@@ -72,24 +64,15 @@ public class SummariesController : ControllerBase
             return BadRequest();
         }
 
-        _context.Entry(summary).State = EntityState.Modified;
+        var updateResult = await _summaryService.UpdateSummaryAsync(id, summary);
 
-        try
+        if (!updateResult)
         {
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Summary with id {Id} updated successfully", id);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!_context.Summaries.Any(s => s.Id == id))
-            {
-                _logger.LogWarning("Update failed: summary with id {Id} not found", id);
-                return NotFound();
-            }
-            _logger.LogError("Concurrency error occurred while updating summary with id {Id}", id);
-            throw;
+            _logger.LogWarning("Update failed: summary with id {Id} not found", id);
+            return NotFound();
         }
 
+        _logger.LogInformation("Summary with id {Id} updated successfully", id);
         return NoContent();
     }
 
@@ -98,15 +81,13 @@ public class SummariesController : ControllerBase
     public async Task<IActionResult> DeleteSummary(int id)
     {
         _logger.LogInformation("Deleting summary with id {Id}", id);
-        var summary = await _context.Summaries.FindAsync(id);
-        if (summary == null)
+        var deleteResult = await _summaryService.DeleteSummaryAsync(id);
+
+        if (!deleteResult)
         {
             _logger.LogWarning("Delete failed: summary with id {Id} not found", id);
             return NotFound();
         }
-
-        _context.Summaries.Remove(summary);
-        await _context.SaveChangesAsync();
 
         _logger.LogInformation("Summary with id {Id} deleted successfully", id);
         return NoContent();

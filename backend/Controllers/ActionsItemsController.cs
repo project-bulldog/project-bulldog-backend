@@ -1,8 +1,6 @@
-using backend.Data;
-using backend.Models;
+using backend.Dtos;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace backend.Controllers;
 
@@ -10,33 +8,30 @@ namespace backend.Controllers;
 [Route("api/[controller]")]
 public class ActionItemsController : ControllerBase
 {
-    private readonly BulldogDbContext _context;
+    private readonly IActionItemService _actionItemService;
     private readonly ILogger<ActionItemsController> _logger;
 
-    public ActionItemsController(BulldogDbContext context, ILogger<ActionItemsController> logger)
+    public ActionItemsController(IActionItemService actionItemService, ILogger<ActionItemsController> logger)
     {
-        _context = context;
+        _actionItemService = actionItemService;
         _logger = logger;
     }
 
     // GET: api/actionitems
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ActionItem>>> GetActionItems()
+    public async Task<ActionResult<IEnumerable<ActionItemDto>>> GetActionItems()
     {
         _logger.LogInformation("Fetching all action items");
-        return await _context.ActionItems
-            .Include(ai => ai.Summary)
-            .ToListAsync();
+        var actionItems = await _actionItemService.GetActionItemsAsync();
+        return Ok(actionItems);
     }
 
     // GET: api/actionitems/{id}
     [HttpGet("{id}")]
-    public async Task<ActionResult<ActionItem>> GetActionItem(int id)
+    public async Task<ActionResult<ActionItemDto>> GetActionItem(int id)
     {
         _logger.LogInformation("Fetching action item with id {Id}", id);
-        var actionItem = await _context.ActionItems
-            .Include(ai => ai.Summary)
-            .FirstOrDefaultAsync(ai => ai.Id == id);
+        var actionItem = await _actionItemService.GetActionItemAsync(id);
 
         if (actionItem == null)
         {
@@ -44,47 +39,27 @@ public class ActionItemsController : ControllerBase
             return NotFound();
         }
 
-        return actionItem;
+        return Ok(actionItem);
     }
 
     // POST: api/actionitems
     [HttpPost]
-    public async Task<ActionResult<ActionItem>> CreateActionItem(ActionItem item)
+    public async Task<ActionResult<ActionItemDto>> CreateActionItem(ActionItemDto itemDto)
     {
         _logger.LogInformation("Creating a new action item");
-        _context.ActionItems.Add(item);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Action item created with id {Id}", item.Id);
-        return CreatedAtAction(nameof(GetActionItem), new { id = item.Id }, item);
+        var createdItem = await _actionItemService.CreateActionItemAsync(itemDto);
+        return CreatedAtAction(nameof(GetActionItem), new { id = createdItem.Id }, createdItem);
     }
 
     // PUT: api/actionitems/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateActionItem(int id, ActionItem item)
+    public async Task<IActionResult> UpdateActionItem(int id, ActionItemDto itemDto)
     {
-        if (id != item.Id)
-        {
-            _logger.LogWarning("Update failed: id {Id} does not match action item id {ItemId}", id, item.Id);
-            return BadRequest();
-        }
+        var updateResult = await _actionItemService.UpdateActionItemAsync(id, itemDto);
 
-        _context.Entry(item).State = EntityState.Modified;
-
-        try
+        if (!updateResult)
         {
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Action item with id {Id} updated successfully", id);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!_context.ActionItems.Any(ai => ai.Id == id))
-            {
-                _logger.LogWarning("Update failed: action item with id {Id} not found", id);
-                return NotFound();
-            }
-            _logger.LogError("Concurrency error occurred while updating action item with id {Id}", id);
-            throw;
+            return NotFound();
         }
 
         return NoContent();
@@ -95,17 +70,14 @@ public class ActionItemsController : ControllerBase
     public async Task<IActionResult> DeleteActionItem(int id)
     {
         _logger.LogInformation("Deleting action item with id {Id}", id);
-        var actionItem = await _context.ActionItems.FindAsync(id);
-        if (actionItem == null)
+        var deleteResult = await _actionItemService.DeleteActionItemAsync(id);
+
+        if (!deleteResult)
         {
             _logger.LogWarning("Delete failed: action item with id {Id} not found", id);
             return NotFound();
         }
 
-        _context.ActionItems.Remove(actionItem);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Action item with id {Id} deleted successfully", id);
         return NoContent();
     }
 
@@ -114,19 +86,14 @@ public class ActionItemsController : ControllerBase
     public async Task<IActionResult> ToggleDone(int id)
     {
         _logger.LogInformation("Toggling done status for action item with id {Id}", id);
-        var item = await _context.ActionItems.FindAsync(id);
-        if (item == null)
+        var toggledItem = await _actionItemService.ToggleDoneAsync(id);
+
+        if (toggledItem == null)
         {
             _logger.LogWarning("Toggle failed: action item with id {Id} not found", id);
             return NotFound();
         }
 
-        _logger.LogInformation("Toggling done status for action item with id {Id}. Previous value: {Prev}", id, item.IsDone);
-        item.IsDone = !item.IsDone;
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("New value for IsDone: {New}", item.IsDone);
-
-        _logger.LogInformation("Action item with id {Id} toggled to {IsDone}", id, item.IsDone);
-        return Ok(item);
+        return Ok(toggledItem);
     }
 }

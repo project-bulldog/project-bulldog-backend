@@ -1,4 +1,6 @@
 using backend.Data;
+using backend.Services.Implementations;
+using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +23,10 @@ builder.Services.AddDbContext<BulldogDbContext>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
+
+builder.Services.AddScoped<ISummaryService, SummaryService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IActionItemService, ActionItemService>();
 
 var app = builder.Build();
 
