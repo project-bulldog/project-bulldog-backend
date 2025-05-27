@@ -8,6 +8,6 @@ namespace backend.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
-        public ICollection<Summary> Summaries { get; set; } = new List<Summary>();
+        public ICollection<Summary> Summaries { get; set; } = [];
     }
 }
