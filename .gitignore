@@ -12,6 +12,12 @@ out/
 *.user
 *.userosscache
 *.sln.docstates
+*.code-workspace
+.history/
+*.db
+*.db-shm
+*.db-wal
+*.jfm
 
 # Rider / JetBrains
 .idea/
@@ -29,3 +35,10 @@ Thumbs.db
 
 ## Test results
 TestResults/
+
+# Visual Studio
+.vs/
+*.ncrunchsolution
+*.ncrunchproject
+*.DotSettings
+*.DotSettings.user

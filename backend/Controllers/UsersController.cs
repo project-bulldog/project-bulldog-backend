@@ -45,24 +45,18 @@ public class UsersController : ControllerBase
 
     // POST: api/users
     [HttpPost]
-    public async Task<ActionResult<UserDto>> CreateUser(User user)
+    public async Task<ActionResult<UserDto>> CreateUser(CreateUserDto createDto)
     {
-        var createdUser = await _userService.CreateUserAsync(user);
+        var createdUser = await _userService.CreateUserAsync(createDto);
         _logger.LogInformation("User created with id {Id}", createdUser.Id);
         return CreatedAtAction(nameof(GetUser), new { id = createdUser.Id }, createdUser);
     }
 
     // PUT: api/users/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateUser(Guid id, User user)
+    public async Task<IActionResult> UpdateUser(Guid id, UpdateUserDto updateDto)
     {
-        if (id != user.Id)
-        {
-            _logger.LogWarning("Update failed: id {Id} does not match user id {UserId}", id, user.Id);
-            return BadRequest();
-        }
-
-        var updateResult = await _userService.UpdateUserAsync(id, user);
+        var updateResult = await _userService.UpdateUserAsync(id, updateDto);
 
         if (!updateResult)
         {

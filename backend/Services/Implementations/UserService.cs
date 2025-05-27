@@ -79,9 +79,15 @@ namespace backend.Services.Implementations
             };
         }
 
-        public async Task<UserDto> CreateUserAsync(User user)
+        public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
-            user.Id = Guid.NewGuid(); // Assign new GUID if client doesn't send it
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = dto.Email,
+                DisplayName = dto.DisplayName
+            };
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -92,29 +98,21 @@ namespace backend.Services.Implementations
                 Id = user.Id,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                Summaries = user.Summaries.Select(s => new SummaryDto
-                {
-                    Id = s.Id,
-                    ActionItems = s.ActionItems.Select(ai => new ActionItemDto
-                    {
-                        Id = ai.Id,
-                        Text = ai.Text,
-                        IsDone = ai.IsDone,
-                        DueAt = ai.DueAt
-                    }).ToList()
-                }).ToList()
+                Summaries = new List<SummaryDto>() // New users won't have summaries yet
             };
         }
 
-        public async Task<bool> UpdateUserAsync(Guid id, User user)
+        public async Task<bool> UpdateUserAsync(Guid id, UpdateUserDto updateDto)
         {
-            if (id != user.Id)
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
             {
-                _logger.LogWarning("Update failed: id {Id} does not match user id {UserId}", id, user.Id);
+                _logger.LogWarning("Update failed: user with id {Id} not found", id);
                 return false;
             }
 
-            _context.Entry(user).State = EntityState.Modified;
+            user.Email = updateDto.Email;
+            user.DisplayName = updateDto.DisplayName;
 
             try
             {
@@ -129,10 +127,12 @@ namespace backend.Services.Implementations
                     _logger.LogWarning("Update failed: user with id {Id} not found", id);
                     return false;
                 }
+
                 _logger.LogError("Concurrency error occurred while updating user with id {Id}", id);
                 throw;
             }
         }
+
 
         public async Task<bool> DeleteUserAsync(Guid id)
         {
