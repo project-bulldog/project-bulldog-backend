@@ -7,7 +7,7 @@ public interface ISummaryService
 {
     Task<IEnumerable<SummaryDto>> GetSummariesAsync();
     Task<SummaryDto?> GetSummaryAsync(int id);
-    Task<SummaryDto> CreateSummaryAsync(Summary summary);
-    Task<bool> UpdateSummaryAsync(int id, Summary summary);
+    Task<SummaryDto> CreateSummaryAsync(CreateSummaryDto summary);
+    Task<bool> UpdateSummaryAsync(int id, UpdateSummaryDto updateDto);
     Task<bool> DeleteSummaryAsync(int id);
 }

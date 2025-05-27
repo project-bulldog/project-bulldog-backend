@@ -13,6 +13,6 @@ namespace backend.Models
         // Navigation
         [JsonIgnore]
         public User? User { get; set; }
-        public ICollection<ActionItem> ActionItems { get; set; } = new List<ActionItem>();
+        public ICollection<ActionItem> ActionItems { get; set; } = [];
     }
 }

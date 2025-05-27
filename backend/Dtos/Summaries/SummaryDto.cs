@@ -9,5 +9,8 @@ public class SummaryDto
     public string SummaryText { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
 
-    public List<ActionItemDto> ActionItems { get; set; } = new();
+    public Guid UserId { get; set; }
+    public string UserDisplayName { get; set; } = null!;
+
+    public List<ActionItemDto> ActionItems { get; set; } = [];
 }

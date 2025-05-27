@@ -24,20 +24,22 @@ namespace backend.Services.Implementations
                 .Include(s => s.User)
                 .ToListAsync();
 
-            return summaries.Select(s => new SummaryDto
+            return [.. summaries.Select(s => new SummaryDto
             {
                 Id = s.Id,
                 OriginalText = s.OriginalText,
                 SummaryText = s.SummaryText,
                 CreatedAt = s.CreatedAt,
-                ActionItems = s.ActionItems.Select(ai => new ActionItemDto
+                UserId = s.UserId,
+                UserDisplayName = s.User != null ? s.User.DisplayName : "[Unknown]",
+                ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
-            }).ToList();
+                })]
+            })];
         }
 
         public async Task<SummaryDto?> GetSummaryAsync(int id)
@@ -59,20 +61,35 @@ namespace backend.Services.Implementations
                 OriginalText = summary.OriginalText,
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
-                ActionItems = summary.ActionItems.Select(ai => new ActionItemDto
+                UserId = summary.UserId,
+                UserDisplayName = summary.User != null ? summary.User.DisplayName : "[Unknown]",
+                ActionItems = [.. summary.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
+                })]
             };
         }
 
-        public async Task<SummaryDto> CreateSummaryAsync(Summary summary)
+        public async Task<SummaryDto> CreateSummaryAsync(CreateSummaryDto dto)
         {
+            var summary = new Summary
+            {
+                OriginalText = dto.OriginalText,
+                SummaryText = dto.SummaryText,
+                UserId = dto.UserId,
+                CreatedAt = DateTime.UtcNow
+            };
+
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
+
+            var loaded = await _context.Summaries
+                .Include(s => s.User)
+                .Include(s => s.ActionItems)
+                .FirstOrDefaultAsync(s => s.Id == summary.Id);
 
             return new SummaryDto
             {
@@ -80,24 +97,31 @@ namespace backend.Services.Implementations
                 OriginalText = summary.OriginalText,
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
-                ActionItems = summary.ActionItems.Select(ai => new ActionItemDto
+                UserId = summary.UserId,
+                UserDisplayName = loaded?.User?.DisplayName ?? "[Unknown]",
+                ActionItems = loaded?.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
+                }).ToList() ?? []
             };
         }
 
-        public async Task<bool> UpdateSummaryAsync(int id, Summary summary)
+
+        public async Task<bool> UpdateSummaryAsync(int id, UpdateSummaryDto updateDto)
         {
-            if (id != summary.Id)
+            var summary = await _context.Summaries.FindAsync(id);
+
+            if (summary == null)
             {
                 return false;
             }
 
-            _context.Entry(summary).State = EntityState.Modified;
+            // Update fields from the DTO
+            summary.OriginalText = updateDto.OriginalText;
+            summary.SummaryText = updateDto.SummaryText;
 
             try
             {

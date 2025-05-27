@@ -1,4 +1,3 @@
-using backend.Dtos;
 using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Interfaces;
@@ -46,7 +45,7 @@ public class SummariesController : ControllerBase
 
     // POST: api/summaries
     [HttpPost]
-    public async Task<ActionResult<SummaryDto>> CreateSummary(Summary summary)
+    public async Task<ActionResult<CreateSummaryDto>> CreateSummary(CreateSummaryDto summary)
     {
         _logger.LogInformation("Creating a new summary");
         var createdSummary = await _summaryService.CreateSummaryAsync(summary);
@@ -57,15 +56,9 @@ public class SummariesController : ControllerBase
 
     // PUT: api/summaries/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateSummary(int id, Summary summary)
+    public async Task<IActionResult> UpdateSummary(int id, UpdateSummaryDto updateDto)
     {
-        if (id != summary.Id)
-        {
-            _logger.LogWarning("Update failed: id {Id} does not match summary id {SummaryId}", id, summary.Id);
-            return BadRequest();
-        }
-
-        var updateResult = await _summaryService.UpdateSummaryAsync(id, summary);
+        var updateResult = await _summaryService.UpdateSummaryAsync(id, updateDto);
 
         if (!updateResult)
         {
