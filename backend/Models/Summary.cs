@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace backend.Models
 {
     public class Summary
@@ -9,7 +11,8 @@ namespace backend.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
-        public required User User { get; set; }
+        [JsonIgnore]
+        public User? User { get; set; }
         public ICollection<ActionItem> ActionItems { get; set; } = new List<ActionItem>();
     }
 }

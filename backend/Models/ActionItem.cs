@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace backend.Models
 {
     public class ActionItem
@@ -9,6 +11,7 @@ namespace backend.Models
         public DateTime? DueAt { get; set; }
 
         // Navigation
-        public required Summary Summary { get; set; }
+        [JsonIgnore]
+        public Summary? Summary { get; set; }
     }
 }
