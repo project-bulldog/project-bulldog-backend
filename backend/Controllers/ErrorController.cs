@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
+[ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 public class ErrorController : ControllerBase
 {

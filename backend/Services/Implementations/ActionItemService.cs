@@ -1,9 +1,8 @@
 using backend.Data;
-using backend.Dtos;
+using backend.Dtos.ActionItems;
 using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace backend.Services.Implementations
 {
@@ -25,13 +24,7 @@ namespace backend.Services.Implementations
                 .Include(ai => ai.Summary)
                 .ToListAsync();
 
-            return actionItems.Select(ai => new ActionItemDto
-            {
-                Id = ai.Id,
-                Text = ai.Text,
-                IsDone = ai.IsDone,
-                DueAt = ai.DueAt
-            }).ToList();
+            return actionItems.Select(MapToDto).ToList();
         }
 
         public async Task<ActionItemDto?> GetActionItemAsync(int id)
@@ -47,23 +40,17 @@ namespace backend.Services.Implementations
                 return null;
             }
 
-            return new ActionItemDto
-            {
-                Id = actionItem.Id,
-                Text = actionItem.Text,
-                IsDone = actionItem.IsDone,
-                DueAt = actionItem.DueAt
-            };
+            return MapToDto(actionItem);
         }
 
-        public async Task<ActionItemDto> CreateActionItemAsync(ActionItemDto itemDto)
+        public async Task<ActionItemDto> CreateActionItemAsync(CreateActionItemDto itemDto)
         {
             _logger.LogInformation("Creating a new action item");
             var item = new ActionItem
             {
                 Text = itemDto.Text,
-                IsDone = itemDto.IsDone,
-                DueAt = itemDto.DueAt
+                DueAt = itemDto.DueAt,
+                SummaryId = itemDto.SummaryId
             };
 
             _context.ActionItems.Add(item);
@@ -74,13 +61,8 @@ namespace backend.Services.Implementations
             return MapToDto(item);
         }
 
-        public async Task<bool> UpdateActionItemAsync(int id, ActionItemDto itemDto)
+        public async Task<bool> UpdateActionItemAsync(int id, UpdateActionItemDto itemDto)
         {
-            if (id != itemDto.Id)
-            {
-                _logger.LogWarning("Update failed: id {Id} does not match action item id {ItemId}", id, itemDto.Id);
-                return false;
-            }
 
             var item = await _context.ActionItems.FindAsync(id);
             if (item == null)
@@ -143,13 +125,7 @@ namespace backend.Services.Implementations
             await _context.SaveChangesAsync();
             _logger.LogInformation("New value for IsDone: {New}", item.IsDone);
 
-            return new ActionItemDto
-            {
-                Id = item.Id,
-                Text = item.Text,
-                IsDone = item.IsDone,
-                DueAt = item.DueAt
-            };
+            return MapToDto(item);
         }
 
         private static ActionItemDto MapToDto(ActionItem item)

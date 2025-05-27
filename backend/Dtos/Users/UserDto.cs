@@ -1,4 +1,6 @@
-namespace backend.Dtos;
+using backend.Dtos.Summaries;
+
+namespace backend.Dtos.Users;
 
 public class UserDto
 {

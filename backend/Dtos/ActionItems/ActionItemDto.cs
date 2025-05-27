@@ -1,4 +1,4 @@
-namespace backend.Dtos;
+namespace backend.Dtos.ActionItems;
 
 public class ActionItemDto
 {

@@ -1,4 +1,4 @@
-using backend.Dtos;
+using backend.Dtos.Summaries;
 using backend.Models;
 
 namespace backend.Services.Interfaces;

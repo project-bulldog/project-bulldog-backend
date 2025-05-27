@@ -1,4 +1,6 @@
-namespace backend.Dtos;
+using backend.Dtos.ActionItems;
+
+namespace backend.Dtos.Summaries;
 
 public class SummaryDto
 {

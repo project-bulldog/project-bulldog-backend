@@ -1,4 +1,4 @@
-using backend.Dtos;
+using backend.Dtos.ActionItems;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -44,7 +44,7 @@ public class ActionItemsController : ControllerBase
 
     // POST: api/actionitems
     [HttpPost]
-    public async Task<ActionResult<ActionItemDto>> CreateActionItem(ActionItemDto itemDto)
+    public async Task<ActionResult<ActionItemDto>> CreateActionItem(CreateActionItemDto itemDto)
     {
         _logger.LogInformation("Creating a new action item");
         var createdItem = await _actionItemService.CreateActionItemAsync(itemDto);
@@ -53,7 +53,7 @@ public class ActionItemsController : ControllerBase
 
     // PUT: api/actionitems/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateActionItem(int id, ActionItemDto itemDto)
+    public async Task<IActionResult> UpdateActionItem(int id, UpdateActionItemDto itemDto)
     {
         var updateResult = await _actionItemService.UpdateActionItemAsync(id, itemDto);
 
