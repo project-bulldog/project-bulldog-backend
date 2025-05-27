@@ -24,20 +24,22 @@ namespace backend.Services.Implementations
                 .Include(s => s.User)
                 .ToListAsync();
 
-            return summaries.Select(s => new SummaryDto
+            return [.. summaries.Select(s => new SummaryDto
             {
                 Id = s.Id,
                 OriginalText = s.OriginalText,
                 SummaryText = s.SummaryText,
                 CreatedAt = s.CreatedAt,
-                ActionItems = s.ActionItems.Select(ai => new ActionItemDto
+                UserId = s.UserId,
+                UserDisplayName = s.User != null ? s.User.DisplayName : "[Unknown]",
+                ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
-            }).ToList();
+                })]
+            })];
         }
 
         public async Task<SummaryDto?> GetSummaryAsync(int id)
@@ -59,13 +61,15 @@ namespace backend.Services.Implementations
                 OriginalText = summary.OriginalText,
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
-                ActionItems = summary.ActionItems.Select(ai => new ActionItemDto
+                UserId = summary.UserId,
+                UserDisplayName = summary.User != null ? summary.User.DisplayName : "[Unknown]",
+                ActionItems = [.. summary.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
+                })]
             };
         }
 
@@ -80,13 +84,15 @@ namespace backend.Services.Implementations
                 OriginalText = summary.OriginalText,
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
-                ActionItems = summary.ActionItems.Select(ai => new ActionItemDto
+                UserId = summary.UserId,
+                UserDisplayName = summary.User != null ? summary.User.DisplayName : "[Unknown]",
+                ActionItems = [.. summary.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                }).ToList()
+                })]
             };
         }
 
