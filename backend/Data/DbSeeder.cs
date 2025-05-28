@@ -19,6 +19,7 @@ public static class DbSeeder
         // Create summaries for the user
         var summary1 = new Summary
         {
+            Id = Guid.NewGuid(),
             UserId = user.Id,
             OriginalText = "Meeting about Q2 goals and upcoming launch.",
             SummaryText = "Discussed Q2 goals and set milestones for product launch.",
@@ -28,6 +29,7 @@ public static class DbSeeder
 
         var summary2 = new Summary
         {
+            Id = Guid.NewGuid(),
             UserId = user.Id,
             OriginalText = "Follow-up on design sprint and feedback.",
             SummaryText = "Reviewed sprint feedback and outlined next steps.",
@@ -36,31 +38,81 @@ public static class DbSeeder
         };
 
         // Create action items for summaries
-        var actionItems = new List<ActionItem>
+        var actionItem1 = new ActionItem
         {
-            new() {
-                Text = "Email project timeline to stakeholders.",
-                IsDone = false,
-                DueAt = DateTime.UtcNow.AddDays(2),
-                Summary = summary1
-                },
-            new() {
-                Text = "Prepare slides for Q2 presentation.",
-                IsDone = false,
-                Summary = summary1
-                },
-            new() {
-                Text = "Schedule next design sprint meeting.",
-                IsDone = true,
-                DueAt = DateTime.UtcNow.AddDays(1),
-                Summary = summary2
-                }
+            Id = Guid.NewGuid(),
+            Text = "Email project timeline to stakeholders.",
+            IsDone = false,
+            DueAt = DateTime.UtcNow.AddDays(2),
+            Summary = summary1
         };
-        // Add everything to context
+
+        var actionItem2 = new ActionItem
+        {
+            Id = Guid.NewGuid(),
+            Text = "Prepare slides for Q2 presentation.",
+            IsDone = false,
+            Summary = summary1
+        };
+
+        var actionItem3 = new ActionItem
+        {
+            Id = Guid.NewGuid(),
+            Text = "Schedule next design sprint meeting.",
+            IsDone = true,
+            DueAt = DateTime.UtcNow.AddDays(1),
+            Summary = summary2
+        };
+
+        // Save users, summaries, action items
         await context.Users.AddAsync(user);
         await context.Summaries.AddRangeAsync(summary1, summary2);
-        await context.ActionItems.AddRangeAsync(actionItems);
+        await context.ActionItems.AddRangeAsync(actionItem1, actionItem2, actionItem3);
+        await context.SaveChangesAsync(); // ✅ Save before adding reminders
 
+        // Now create reminders (linked + standalone)
+        var reminders = new List<Reminder>
+        {
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Message = "Follow up on Q2 timeline email.",
+                ReminderTime = DateTime.UtcNow.AddHours(12),
+                ActionItem = actionItem1
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Message = "Start working on slides tomorrow.",
+                ReminderTime = DateTime.UtcNow.AddDays(1),
+                ActionItem = actionItem2
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Message = "Check in on design sprint meeting outcome.",
+                ReminderTime = DateTime.UtcNow.AddDays(3)
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Message = "Pay invoices by the 15th.",
+                ReminderTime = DateTime.UtcNow.AddDays(5)
+            },
+            new()
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Message = "Review monthly budget.",
+                ReminderTime = DateTime.UtcNow.AddDays(7)
+            }
+        };
+
+        await context.Reminders.AddRangeAsync(reminders);
         await context.SaveChangesAsync();
     }
 }

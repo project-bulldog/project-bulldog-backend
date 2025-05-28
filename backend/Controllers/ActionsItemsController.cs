@@ -28,7 +28,7 @@ public class ActionItemsController : ControllerBase
 
     // GET: api/actionitems/{id}
     [HttpGet("{id}")]
-    public async Task<ActionResult<ActionItemDto>> GetActionItem(int id)
+    public async Task<ActionResult<ActionItemDto>> GetActionItem(Guid id)
     {
         _logger.LogInformation("Fetching action item with id {Id}", id);
         var actionItem = await _actionItemService.GetActionItemAsync(id);
@@ -53,7 +53,7 @@ public class ActionItemsController : ControllerBase
 
     // PUT: api/actionitems/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateActionItem(int id, UpdateActionItemDto itemDto)
+    public async Task<IActionResult> UpdateActionItem(Guid id, UpdateActionItemDto itemDto)
     {
         var updateResult = await _actionItemService.UpdateActionItemAsync(id, itemDto);
 
@@ -67,7 +67,7 @@ public class ActionItemsController : ControllerBase
 
     // DELETE: api/actionitems/{id}
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteActionItem(int id)
+    public async Task<IActionResult> DeleteActionItem(Guid id)
     {
         _logger.LogInformation("Deleting action item with id {Id}", id);
         var deleteResult = await _actionItemService.DeleteActionItemAsync(id);
@@ -83,7 +83,7 @@ public class ActionItemsController : ControllerBase
 
     // PATCH: api/actionitems/{id}/toggle
     [HttpPatch("{id}/toggle")]
-    public async Task<IActionResult> ToggleDone(int id)
+    public async Task<IActionResult> ToggleDone(Guid id)
     {
         _logger.LogInformation("Toggling done status for action item with id {Id}", id);
         var toggledItem = await _actionItemService.ToggleDoneAsync(id);

@@ -47,14 +47,14 @@ public class SummaryServiceTests : IDisposable
     {
         // Arrange
         var user = await CreateTestUser();
-        _ = await CreateTestSummary(user);
+        var summary = await CreateTestSummary(user);
 
         // Act
-        var result = await _service.GetSummaryAsync(1);
+        var result = await _service.GetSummaryAsync(summary.Id);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(1, result.Id);
+        Assert.Equal(summary.Id.ToString(), result.Id.ToString());
         Assert.Equal("Test", result.OriginalText);
         Assert.Equal("Summary", result.SummaryText);
         Assert.Equal("Test User", result.UserDisplayName);
@@ -64,7 +64,7 @@ public class SummaryServiceTests : IDisposable
     public async Task GetSummaryAsync_WithInvalidId_ShouldReturnNull()
     {
         // Act
-        var result = await _service.GetSummaryAsync(999);
+        var result = await _service.GetSummaryAsync(Guid.NewGuid());
 
         // Assert
         Assert.Null(result);
@@ -87,7 +87,7 @@ public class SummaryServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(result);
-        Assert.NotEqual(0, result.Id);
+        Assert.NotEqual<Guid>(Guid.Empty, result.Id);
         Assert.Equal("Test", result.OriginalText);
         Assert.Equal("Summary", result.SummaryText);
         Assert.Equal(user.Id, result.UserId);
@@ -100,7 +100,7 @@ public class SummaryServiceTests : IDisposable
     {
         // Arrange
         var user = await CreateTestUser();
-        _ = await CreateTestSummary(user);
+        var summary = await CreateTestSummary(user);
         var updateDto = new UpdateSummaryDto
         {
             OriginalText = "New Text",
@@ -108,11 +108,11 @@ public class SummaryServiceTests : IDisposable
         };
 
         // Act
-        var result = await _service.UpdateSummaryAsync(1, updateDto);
+        var result = await _service.UpdateSummaryAsync(summary.Id, updateDto);
 
         // Assert
         Assert.True(result);
-        var updatedSummary = await _context.Summaries.FindAsync(1);
+        var updatedSummary = await _context.Summaries.FindAsync(summary.Id);
         Assert.NotNull(updatedSummary);
         Assert.Equal("New Text", updatedSummary!.OriginalText);
         Assert.Equal("New Summary", updatedSummary.SummaryText);
@@ -129,7 +129,7 @@ public class SummaryServiceTests : IDisposable
         };
 
         // Act
-        var result = await _service.UpdateSummaryAsync(999, updateDto);
+        var result = await _service.UpdateSummaryAsync(Guid.NewGuid(), updateDto);
 
         // Assert
         Assert.False(result);
@@ -143,18 +143,18 @@ public class SummaryServiceTests : IDisposable
         var summary = await CreateTestSummary(user);
 
         // Act
-        var result = await _service.DeleteSummaryAsync(1);
+        var result = await _service.DeleteSummaryAsync(summary.Id);
 
         // Assert
         Assert.True(result);
-        Assert.Null(await _context.Summaries.FindAsync(1));
+        Assert.Null(await _context.Summaries.FindAsync(summary.Id));
     }
 
     [Fact]
     public async Task DeleteSummaryAsync_WithInvalidId_ShouldReturnFalse()
     {
         // Act
-        var result = await _service.DeleteSummaryAsync(999);
+        var result = await _service.DeleteSummaryAsync(Guid.NewGuid());
 
         // Assert
         Assert.False(result);
@@ -166,16 +166,17 @@ public class SummaryServiceTests : IDisposable
         // Arrange
         var user = await CreateTestUser();
         var summary = await CreateTestSummary(user);
-        _ = await CreateTestActionItem(summary);
+        var actionItem = await CreateTestActionItem(summary);
 
         // Act
-        var result = await _service.GetSummaryAsync(1);
+        var result = await _service.GetSummaryAsync(summary.Id);
 
         // Assert
         Assert.NotNull(result);
         Assert.Single(result.ActionItems);
+
         var resultActionItem = result.ActionItems.First();
-        Assert.Equal(1, resultActionItem.Id);
+        Assert.Equal(actionItem.Id, resultActionItem.Id);
         Assert.Equal("Action Item", resultActionItem.Text);
         Assert.False(resultActionItem.IsDone);
         Assert.NotNull(resultActionItem.DueAt);
@@ -199,6 +200,7 @@ public class SummaryServiceTests : IDisposable
     {
         var summary = new Summary
         {
+            Id = Guid.NewGuid(),
             OriginalText = originalText,
             SummaryText = summaryText,
             UserId = user.Id,
@@ -213,6 +215,7 @@ public class SummaryServiceTests : IDisposable
     {
         var actionItem = new ActionItem
         {
+            Id = Guid.NewGuid(),
             SummaryId = summary.Id,
             Text = "Action Item",
             IsDone = false,

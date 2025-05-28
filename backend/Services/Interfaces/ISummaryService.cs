@@ -6,8 +6,8 @@ namespace backend.Services.Interfaces;
 public interface ISummaryService
 {
     Task<IEnumerable<SummaryDto>> GetSummariesAsync();
-    Task<SummaryDto?> GetSummaryAsync(int id);
+    Task<SummaryDto?> GetSummaryAsync(Guid id);
     Task<SummaryDto> CreateSummaryAsync(CreateSummaryDto summary);
-    Task<bool> UpdateSummaryAsync(int id, UpdateSummaryDto updateDto);
-    Task<bool> DeleteSummaryAsync(int id);
+    Task<bool> UpdateSummaryAsync(Guid id, UpdateSummaryDto updateDto);
+    Task<bool> DeleteSummaryAsync(Guid id);
 }

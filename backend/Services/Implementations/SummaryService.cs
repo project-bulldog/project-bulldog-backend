@@ -48,7 +48,7 @@ namespace backend.Services.Implementations
             })];
         }
 
-        public async Task<SummaryDto?> GetSummaryAsync(int id)
+        public async Task<SummaryDto?> GetSummaryAsync(Guid id)
         {
             _logger.LogInformation("Fetching summary with id {Id}", id);
             var summary = await _context.Summaries
@@ -122,7 +122,7 @@ namespace backend.Services.Implementations
             };
         }
 
-        public async Task<bool> UpdateSummaryAsync(int id, UpdateSummaryDto updateDto)
+        public async Task<bool> UpdateSummaryAsync(Guid id, UpdateSummaryDto updateDto)
         {
             _logger.LogInformation("Updating summary with id {Id}", id);
             var summary = await _context.Summaries.FindAsync(id);
@@ -155,7 +155,7 @@ namespace backend.Services.Implementations
             }
         }
 
-        public async Task<bool> DeleteSummaryAsync(int id)
+        public async Task<bool> DeleteSummaryAsync(Guid id)
         {
             _logger.LogInformation("Deleting summary with id {Id}", id);
             var summary = await _context.Summaries.FindAsync(id);
