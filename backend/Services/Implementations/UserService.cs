@@ -27,23 +27,23 @@ namespace backend.Services.Implementations
                 .ThenInclude(s => s.ActionItems)
                 .ToListAsync();
 
-            return users.Select(u => new UserDto
+            return [.. users.Select(u => new UserDto
             {
                 Id = u.Id,
                 Email = u.Email,
                 DisplayName = u.DisplayName,
-                Summaries = u.Summaries.Select(s => new SummaryDto
+                Summaries = [.. u.Summaries.Select(s => new SummaryDto
                 {
                     Id = s.Id,
-                    ActionItems = s.ActionItems.Select(ai => new ActionItemDto
+                    ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
                     {
                         Id = ai.Id,
                         Text = ai.Text,
                         IsDone = ai.IsDone,
                         DueAt = ai.DueAt
-                    }).ToList()
-                }).ToList()
-            }).ToList();
+                    })]
+                })]
+            })];
         }
 
         public async Task<UserDto?> GetUserAsync(Guid id)
@@ -65,17 +65,17 @@ namespace backend.Services.Implementations
                 Id = user.Id,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                Summaries = user.Summaries.Select(s => new SummaryDto
+                Summaries = [.. user.Summaries.Select(s => new SummaryDto
                 {
                     Id = s.Id,
-                    ActionItems = s.ActionItems.Select(ai => new ActionItemDto
+                    ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
                     {
                         Id = ai.Id,
                         Text = ai.Text,
                         IsDone = ai.IsDone,
                         DueAt = ai.DueAt
-                    }).ToList()
-                }).ToList()
+                    })]
+                })]
             };
         }
 
@@ -98,7 +98,7 @@ namespace backend.Services.Implementations
                 Id = user.Id,
                 Email = user.Email,
                 DisplayName = user.DisplayName,
-                Summaries = new List<SummaryDto>() // New users won't have summaries yet
+                Summaries = [] //new users won't have summaries yet
             };
         }
 

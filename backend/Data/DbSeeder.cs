@@ -38,28 +38,24 @@ public static class DbSeeder
         // Create action items for summaries
         var actionItems = new List<ActionItem>
         {
-            new ActionItem
-            {
+            new() {
                 Text = "Email project timeline to stakeholders.",
                 IsDone = false,
                 DueAt = DateTime.UtcNow.AddDays(2),
                 Summary = summary1
-            },
-            new ActionItem
-            {
+                },
+            new() {
                 Text = "Prepare slides for Q2 presentation.",
                 IsDone = false,
                 Summary = summary1
-            },
-            new ActionItem
-            {
+                },
+            new() {
                 Text = "Schedule next design sprint meeting.",
                 IsDone = true,
                 DueAt = DateTime.UtcNow.AddDays(1),
                 Summary = summary2
-            }
+                }
         };
-
         // Add everything to context
         await context.Users.AddAsync(user);
         await context.Summaries.AddRangeAsync(summary1, summary2);

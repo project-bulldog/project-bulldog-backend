@@ -24,23 +24,12 @@ public class UserServiceTests : IDisposable
         _service = new UserService(_context, _loggerMock.Object);
     }
 
-    public void Dispose()
-    {
-        _context.Database.EnsureDeleted();
-        _context.Dispose();
-    }
-
     [Fact]
     public async Task GetUsersAsync_ShouldReturnAllUsers()
     {
         // Arrange
-        var users = new List<User>
-        {
-            new() { Id = Guid.NewGuid(), Email = "test1@test.com", DisplayName = "Test User 1" },
-            new() { Id = Guid.NewGuid(), Email = "test2@test.com", DisplayName = "Test User 2" }
-        };
-        await _context.Users.AddRangeAsync(users);
-        await _context.SaveChangesAsync();
+        var user1 = await CreateTestUser("test1@test.com", "Test User 1");
+        var user2 = await CreateTestUser("test2@test.com", "Test User 2");
 
         // Act
         var result = await _service.GetUsersAsync();
@@ -55,17 +44,14 @@ public class UserServiceTests : IDisposable
     public async Task GetUserAsync_WithValidId_ShouldReturnUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = new User { Id = userId, Email = "test@test.com", DisplayName = "Test User" };
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
+        var user = await CreateTestUser();
 
         // Act
-        var result = await _service.GetUserAsync(userId);
+        var result = await _service.GetUserAsync(user.Id);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
+        Assert.Equal(user.Id, result.Id);
         Assert.Equal("test@test.com", result.Email);
     }
 
@@ -83,43 +69,16 @@ public class UserServiceTests : IDisposable
     public async Task GetUserAsync_WithSummariesAndActionItems_ShouldReturnCompleteStructure()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = new User
-        {
-            Id = userId,
-            Email = "test@test.com",
-            DisplayName = "Test User"
-        };
-
-        var summary = new Summary
-        {
-            Id = 2,
-            UserId = userId,
-            OriginalText = "Test Summary",
-            SummaryText = "Test Summary Text"
-        };
-
-        var actionItem = new ActionItem
-        {
-            Id = 3,
-            SummaryId = summary.Id,
-            Text = "Test Action Item",
-            IsDone = false,
-            DueAt = DateTime.UtcNow.AddDays(1)
-        };
-
-        summary.ActionItems.Add(actionItem);
-        user.Summaries.Add(summary);
-
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
+        var user = await CreateTestUser();
+        var summary = await CreateTestSummary(user);
+        var actionItem = await CreateTestActionItem(summary);
 
         // Act
-        var result = await _service.GetUserAsync(userId);
+        var result = await _service.GetUserAsync(user.Id);
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(userId, result.Id);
+        Assert.Equal(user.Id, result.Id);
         Assert.Equal("test@test.com", result.Email);
         Assert.Equal("Test User", result.DisplayName);
 
@@ -162,11 +121,7 @@ public class UserServiceTests : IDisposable
     public async Task UpdateUserAsync_WithValidId_ShouldUpdateUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = new User { Id = userId, Email = "old@test.com", DisplayName = "Old Name" };
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
-
+        var user = await CreateTestUser();
         var updateDto = new UpdateUserDto
         {
             Email = "new@test.com",
@@ -174,11 +129,12 @@ public class UserServiceTests : IDisposable
         };
 
         // Act
-        var result = await _service.UpdateUserAsync(userId, updateDto);
+        var result = await _service.UpdateUserAsync(user.Id, updateDto);
 
         // Assert
         Assert.True(result);
-        var updatedUser = await _context.Users.FindAsync(userId);
+        var updatedUser = await _context.Users.FindAsync(user.Id);
+        Assert.NotNull(updatedUser);
         Assert.Equal(updateDto.Email, updatedUser.Email);
         Assert.Equal(updateDto.DisplayName, updatedUser.DisplayName);
     }
@@ -204,17 +160,14 @@ public class UserServiceTests : IDisposable
     public async Task DeleteUserAsync_WithValidId_ShouldDeleteUser()
     {
         // Arrange
-        var userId = Guid.NewGuid();
-        var user = new User { Id = userId, Email = "test@test.com", DisplayName = "Test User" };
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
+        var user = await CreateTestUser();
 
         // Act
-        var result = await _service.DeleteUserAsync(userId);
+        var result = await _service.DeleteUserAsync(user.Id);
 
         // Assert
         Assert.True(result);
-        Assert.Null(await _context.Users.FindAsync(userId));
+        Assert.Null(await _context.Users.FindAsync(user.Id));
     }
 
     [Fact]
@@ -226,4 +179,54 @@ public class UserServiceTests : IDisposable
         // Assert
         Assert.False(result);
     }
+
+    #region Helper Methods
+    private async Task<User> CreateTestUser(string email = "test@test.com", string displayName = "Test User")
+    {
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            DisplayName = displayName
+        };
+        await _context.Users.AddAsync(user);
+        await _context.SaveChangesAsync();
+        return user;
+    }
+
+    private async Task<Summary> CreateTestSummary(User user, string originalText = "Test Summary", string summaryText = "Test Summary Text")
+    {
+        var summary = new Summary
+        {
+            Id = 2,
+            UserId = user.Id,
+            OriginalText = originalText,
+            SummaryText = summaryText,
+            User = user
+        };
+        await _context.Summaries.AddAsync(summary);
+        await _context.SaveChangesAsync();
+        return summary;
+    }
+
+    private async Task<ActionItem> CreateTestActionItem(Summary summary)
+    {
+        var actionItem = new ActionItem
+        {
+            SummaryId = summary.Id,
+            Text = "Test Action Item",
+            IsDone = false,
+            DueAt = DateTime.UtcNow.AddDays(1)
+        };
+        summary.ActionItems.Add(actionItem);
+        await _context.SaveChangesAsync();
+        return actionItem;
+    }
+
+    public void Dispose()
+    {
+        _context.Database.EnsureDeleted();
+        _context.Dispose();
+    }
+    #endregion
 }
