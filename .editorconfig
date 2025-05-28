@@ -1,12 +1,8 @@
-# .editorconfig for C#/.NET
-
-root = true
-
 [*.cs]
 indent_style = space
 indent_size = 4
-charset = utf-8-bom
-end_of_line = crlf
+charset = utf-8
+end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 dotnet_sort_system_directives_first = true
@@ -21,5 +17,7 @@ csharp_style_var_elsewhere = false:suggestion
 
 csharp_new_line_before_open_brace = all
 
-[*.{csproj,json,xml}]
-indent_size = 2
+# suppress style rules
+dotnet_diagnostic.IDE0008.severity = none
+dotnet_diagnostic.IDE0290.severity = none
+dotnet_diagnostic.IDE0028.severity = none
