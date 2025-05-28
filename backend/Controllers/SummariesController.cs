@@ -29,7 +29,7 @@ public class SummariesController : ControllerBase
 
     // GET: api/summaries/{id}
     [HttpGet("{id}")]
-    public async Task<ActionResult<SummaryDto>> GetSummary(int id)
+    public async Task<ActionResult<SummaryDto>> GetSummary(Guid id)
     {
         _logger.LogInformation("Fetching summary with id {Id}", id);
         var summary = await _summaryService.GetSummaryAsync(id);
@@ -56,7 +56,7 @@ public class SummariesController : ControllerBase
 
     // PUT: api/summaries/{id}
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateSummary(int id, UpdateSummaryDto updateDto)
+    public async Task<IActionResult> UpdateSummary(Guid id, UpdateSummaryDto updateDto)
     {
         var updateResult = await _summaryService.UpdateSummaryAsync(id, updateDto);
 
@@ -72,7 +72,7 @@ public class SummariesController : ControllerBase
 
     // DELETE: api/summaries/{id}
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteSummary(int id)
+    public async Task<IActionResult> DeleteSummary(Guid id)
     {
         _logger.LogInformation("Deleting summary with id {Id}", id);
         var deleteResult = await _summaryService.DeleteSummaryAsync(id);

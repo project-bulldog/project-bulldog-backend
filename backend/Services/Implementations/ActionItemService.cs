@@ -27,7 +27,7 @@ namespace backend.Services.Implementations
             return actionItems.Select(MapToDto).ToList();
         }
 
-        public async Task<ActionItemDto?> GetActionItemAsync(int id)
+        public async Task<ActionItemDto?> GetActionItemAsync(Guid id)
         {
             _logger.LogInformation("Fetching action item with id {Id}", id);
             var actionItem = await _context.ActionItems
@@ -61,7 +61,7 @@ namespace backend.Services.Implementations
             return MapToDto(item);
         }
 
-        public async Task<bool> UpdateActionItemAsync(int id, UpdateActionItemDto itemDto)
+        public async Task<bool> UpdateActionItemAsync(Guid id, UpdateActionItemDto itemDto)
         {
 
             var item = await _context.ActionItems.FindAsync(id);
@@ -93,7 +93,7 @@ namespace backend.Services.Implementations
             }
         }
 
-        public async Task<bool> DeleteActionItemAsync(int id)
+        public async Task<bool> DeleteActionItemAsync(Guid id)
         {
             _logger.LogInformation("Deleting action item with id {Id}", id);
             var actionItem = await _context.ActionItems.FindAsync(id);
@@ -110,7 +110,7 @@ namespace backend.Services.Implementations
             return true;
         }
 
-        public async Task<ActionItemDto?> ToggleDoneAsync(int id)
+        public async Task<ActionItemDto?> ToggleDoneAsync(Guid id)
         {
             _logger.LogInformation("Toggling done status for action item with id {Id}", id);
             var item = await _context.ActionItems.FindAsync(id);

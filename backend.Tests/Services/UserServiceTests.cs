@@ -198,7 +198,7 @@ public class UserServiceTests : IDisposable
     {
         var summary = new Summary
         {
-            Id = 2,
+            Id = Guid.NewGuid(),
             UserId = user.Id,
             OriginalText = originalText,
             SummaryText = summaryText,
@@ -213,6 +213,7 @@ public class UserServiceTests : IDisposable
     {
         var actionItem = new ActionItem
         {
+            Id = Guid.NewGuid(),
             SummaryId = summary.Id,
             Text = "Test Action Item",
             IsDone = false,

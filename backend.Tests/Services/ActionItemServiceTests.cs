@@ -68,7 +68,7 @@ namespace backend.Tests.Services
         public async Task GetActionItemAsync_WithInvalidId_ShouldReturnNull()
         {
             // Act
-            var result = await _service.GetActionItemAsync(999);
+            var result = await _service.GetActionItemAsync(Guid.NewGuid());
 
             // Assert
             Assert.Null(result);
@@ -120,7 +120,7 @@ namespace backend.Tests.Services
             var updateDto = CreateTestUpdateDto();
 
             // Act
-            var result = await _service.UpdateActionItemAsync(999, updateDto);
+            var result = await _service.UpdateActionItemAsync(Guid.NewGuid(), updateDto);
 
             // Assert
             Assert.False(result);
@@ -146,7 +146,7 @@ namespace backend.Tests.Services
         public async Task DeleteActionItemAsync_WithInvalidId_ShouldReturnFalse()
         {
             // Act
-            var result = await _service.DeleteActionItemAsync(999);
+            var result = await _service.DeleteActionItemAsync(Guid.NewGuid());
 
             // Assert
             Assert.False(result);
@@ -177,7 +177,7 @@ namespace backend.Tests.Services
         public async Task ToggleDoneAsync_WithInvalidId_ShouldReturnNull()
         {
             // Act
-            var result = await _service.ToggleDoneAsync(999);
+            var result = await _service.ToggleDoneAsync(Guid.NewGuid());
 
             // Assert
             Assert.Null(result);
@@ -188,6 +188,7 @@ namespace backend.Tests.Services
         {
             var user = new User
             {
+                Id = Guid.NewGuid(),
                 Email = "test@example.com",
                 DisplayName = "Test User"
             };
@@ -200,6 +201,7 @@ namespace backend.Tests.Services
         {
             var summary = new Summary
             {
+                Id = Guid.NewGuid(),
                 UserId = user.Id,
                 OriginalText = originalText,
                 SummaryText = summaryText
@@ -209,7 +211,7 @@ namespace backend.Tests.Services
             return summary;
         }
 
-        private async Task<ActionItem> CreateTestActionItemAsync(string text = "Test Action Item", bool isDone = false, int? summaryId = null)
+        private async Task<ActionItem> CreateTestActionItemAsync(string text = "Test Action Item", bool isDone = false, Guid? summaryId = null)
         {
             var actionItem = new ActionItem
             {
@@ -223,7 +225,7 @@ namespace backend.Tests.Services
             return actionItem;
         }
 
-        private CreateActionItemDto CreateTestCreateDto(string text = "New Action Item", int? summaryId = null)
+        private CreateActionItemDto CreateTestCreateDto(string text = "New Action Item", Guid? summaryId = null)
         {
             return new CreateActionItemDto
             {

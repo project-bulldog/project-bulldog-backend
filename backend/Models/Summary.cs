@@ -4,7 +4,7 @@ namespace backend.Models
 {
     public class Summary
     {
-        public int Id { get; set; }
+        public Guid Id { get; set; }
         public Guid UserId { get; set; }
         public required string OriginalText { get; set; }
         public required string SummaryText { get; set; }
