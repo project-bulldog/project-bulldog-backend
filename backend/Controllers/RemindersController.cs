@@ -1,11 +1,13 @@
 using backend.Dtos.Reminders;
 using backend.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class RemindersController : ControllerBase
 {
     private readonly IReminderService _reminderService;
