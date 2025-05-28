@@ -10,8 +10,6 @@ namespace backend.Models
         public bool IsDone { get; set; } = false;
         public DateTime? DueAt { get; set; }
 
-        // Navigation
-        [JsonIgnore]
         public Summary? Summary { get; set; }
     }
 }

@@ -11,7 +11,6 @@ namespace backend.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation
-        [JsonIgnore]
         public User? User { get; set; }
         public ICollection<ActionItem> ActionItems { get; set; } = [];
     }

@@ -24,9 +24,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
+builder.Services.AddScoped<IActionItemService, ActionItemService>();
+builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IActionItemService, ActionItemService>();
+
+
 
 var app = builder.Build();
 
