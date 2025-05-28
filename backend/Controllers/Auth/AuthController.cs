@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Dtos.Auth;
+using backend.Dtos.Users;
 using backend.Models;
 using backend.Services.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -22,29 +23,37 @@ public class AuthController : ControllerBase
     }
 
 
-    [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    [HttpPost("register")]
+    public async Task<ActionResult<AuthResponse>> Register(CreateUserDto dto)
     {
-        if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
             return BadRequest("Email already registered.");
 
         var user = new User
         {
             Id = Guid.NewGuid(),
-            Email = request.Email,
-            DisplayName = request.DisplayName
+            Email = dto.Email,
+            DisplayName = dto.DisplayName
         };
 
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
         var token = _jwt.GenerateToken(user);
-        return Ok(new { token });
+
+        var response = new AuthResponse(token, new UserDto
+        {
+            Id = user.Id,
+            Email = user.Email,
+            DisplayName = user.DisplayName
+        });
+
+        return Ok(response);
     }
 
-    [HttpPost("login")]
     [AllowAnonymous]
+    [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
