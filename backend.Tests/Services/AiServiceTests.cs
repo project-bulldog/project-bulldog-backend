@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Dtos.AiSummaries;
+using backend.Dtos.Summaries;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public class AiServiceTests : IDisposable
     private readonly BulldogDbContext _context;
     private readonly Mock<IOpenAiService> _openAiServiceMock;
     private readonly AiService _service;
+    private readonly Guid _testUserId = Guid.NewGuid();
 
     public AiServiceTests()
     {
@@ -46,7 +48,7 @@ public class AiServiceTests : IDisposable
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
 
         // Act
-        var result = await _service.SummarizeTextAsync(request, userId);
+        var result = await _service.SummarizeAsync(request, userId);
 
         // Assert
         Assert.NotNull(result);
@@ -87,7 +89,7 @@ public class AiServiceTests : IDisposable
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
 
         // Act
-        var result = await _service.SummarizeTextAsync(request, userId);
+        var result = await _service.SummarizeAsync(request, userId);
 
         // Assert
         Assert.NotNull(result);
@@ -122,7 +124,7 @@ public class AiServiceTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<Exception>(() =>
-            _service.SummarizeTextAsync(request, userId));
+            _service.SummarizeAsync(request, userId));
     }
 
     [Fact]
@@ -141,7 +143,7 @@ public class AiServiceTests : IDisposable
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
 
         // Act
-        var result = await _service.SummarizeTextAsync(request, userId);
+        var result = await _service.SummarizeAsync(request, userId);
 
         // Assert
         Assert.NotNull(result);
@@ -149,5 +151,131 @@ public class AiServiceTests : IDisposable
         Assert.NotEqual(default, result.Summary.CreatedAt);
         Assert.True(result.Summary.CreatedAt <= DateTime.UtcNow);
         Assert.True(result.Summary.CreatedAt >= DateTime.UtcNow.AddMinutes(-1));
+    }
+
+    [Fact]
+    public async Task SummarizeLongTextAsync_ShouldChunk_WhenTokenLimitExceeded()
+    {
+        // Arrange
+        var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph.", 50));
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => $"Summary: [{text.Length}]");
+
+        // Act
+        var result = await _service.SummarizeChunkedAsync(request);
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), "gpt-3.5-turbo"), Times.AtLeast(2));
+        Assert.Contains("Summary:", result);
+    }
+
+    [Fact]
+    public async Task SummarizeLongTextAsync_ShouldBypassChunking_ForGpt4WithLowTokens()
+    {
+        // Arrange
+        var input = "Short input text.";
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, true, "gpt-4-turbo");
+
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => $"GPT-4 Summary: {text}");
+
+        // Act
+        var result = await _service.SummarizeChunkedAsync(request);
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.GetSummaryOnlyAsync(input, "gpt-4-turbo"), Times.Once);
+        Assert.Contains("GPT-4 Summary:", result);
+    }
+
+    [Fact]
+    public async Task SummarizeLongTextAsync_ShouldReturnStitchedSummary_WhenMapReduceIsEnabled()
+    {
+        // Arrange
+        var input = string.Join("\n\n", Enumerable.Repeat("Paragraph content.", 30));
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => $"SummaryChunk");
+
+        // Act
+        var result = await _service.SummarizeChunkedAsync(request);
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.GetSummaryOnlyAsync(It.Is<string>(s => s.StartsWith("Summarize this combined summary")), "gpt-3.5-turbo"), Times.Once);
+        Assert.Contains("SummaryChunk", result);
+    }
+
+    [Fact]
+    public async Task SummarizeLongTextAsync_ShouldReturnJoinedSummaries_WhenMapReduceDisabled()
+    {
+        // Arrange
+        var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 200));
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, false);
+
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => $"Summary: {text.Substring(0, Math.Min(5, text.Length))}");
+
+        // Act
+        var result = await _service.SummarizeChunkedAsync(request);
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), "gpt-3.5-turbo"), Times.AtLeast(2));
+        Assert.Contains("Summary:", result);
+    }
+
+    [Fact]
+    public async Task SummarizeAndExtractActionItemsFromLongTextAsync_ShouldChunk_WhenTokenLimitExceeded()
+    {
+        // Arrange
+        var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 50));
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+
+        // Mock the SummarizeAndExtractAsync for chunk processing
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.StartsWith("Summarize this combined summary")), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => ("Chunk Summary", new List<string> { "Task 1", "Task 2" }));
+
+        // Mock the GetSummaryOnlyAsync for final summary stitching
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.Is<string>(s => s.StartsWith("Summarize this combined summary")), It.IsAny<string>()))
+            .ReturnsAsync("Final Summary");
+
+        // Act
+        var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
+        var (summary, tasks) = result;
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.StartsWith("Summarize this combined summary")), "gpt-3.5-turbo"), Times.AtLeast(2));
+        Assert.NotNull(summary);
+        Assert.Equal("Final Summary", summary);
+        Assert.True(tasks.Count >= 4, $"Expected at least 4 tasks, but got {tasks.Count}"); // At least 2 tasks per chunk, at least 2 chunks
+        Assert.All(tasks, task => Assert.NotNull(task));
+    }
+
+    [Fact]
+    public async Task SummarizeAndExtractActionItemsFromLongTextAsync_ShouldBypassChunking_ForGpt4WithLowTokens()
+    {
+        // Arrange
+        var input = "Short input text.";
+        var request = new ChunkedSummaryRequestDto(input, _testUserId, true, "gpt-4-turbo");
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => ("GPT-4 Summary", new List<string> { "Task 1" }));
+
+        // Act
+        var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
+        var (summary, tasks) = result;
+
+        // Assert
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(input, "gpt-4-turbo"), Times.Once);
+        Assert.Contains("GPT-4 Summary", summary);
+        Assert.Single(tasks);
     }
 }

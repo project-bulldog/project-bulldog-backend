@@ -1,9 +1,7 @@
 using backend.Dtos.Summaries;
-using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
@@ -13,13 +11,13 @@ namespace backend.Controllers;
 public class SummariesController : ControllerBase
 {
     private readonly ISummaryService _summaryService;
-    private readonly IChunkedSummarizerService _chunkedSummarizerService;
+    private readonly IAiService _aiService;
     private readonly ILogger<SummariesController> _logger;
 
-    public SummariesController(ISummaryService summaryService, IChunkedSummarizerService chunkedSummarizerService, ILogger<SummariesController> logger)
+    public SummariesController(ISummaryService summaryService, IAiService aiService, ILogger<SummariesController> logger)
     {
         _summaryService = summaryService;
-        _chunkedSummarizerService = chunkedSummarizerService;
+        _aiService = aiService;
         _logger = logger;
     }
 
@@ -60,14 +58,25 @@ public class SummariesController : ControllerBase
     }
 
     // POST: api/summaries/chunked-summary
-    [HttpPost("chunked-summary")]
-    public async Task<IActionResult> GetChunkedSummary([FromBody] string input)
+    [HttpPost("generate-chunked-summary")]
+    public async Task<IActionResult> GenerateChunkedSummary([FromBody] ChunkedSummaryRequestDto request)
     {
-        var model = Request.Headers["X-Model"].FirstOrDefault() ?? "gpt-3.5-turbo";
-        var useMapReduce = Request.Headers["X-MapReduce"].FirstOrDefault()?.ToLower() != "false";
-
-        var summary = await _chunkedSummarizerService.SummarizeLongTextAsync(input, useMapReduce, model);
+        var summary = await _aiService.SummarizeChunkedAsync(request);
         return Ok(summary);
+    }
+
+    // POST: api/summaries/generate-chunked-summary-with-actionItems
+    [HttpPost("generate-chunked-summary-with-actionItems")]
+    public async Task<IActionResult> GenerateChunkedSummaryWithActionItems([FromBody] ChunkedSummaryRequestDto request)
+    {
+        var result = await _summaryService.GenerateChunkedSummaryWithActionItemsAsync(
+            request.Input,
+            request.UserId,
+            request.UseMapReduce ?? true,
+            request.Model ?? "gpt-3.5-turbo"
+        );
+
+        return Ok(result);
     }
 
     // PUT: api/summaries/{id}

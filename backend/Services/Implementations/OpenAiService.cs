@@ -5,7 +5,7 @@ namespace backend.Services.Implementations
 {
     public class OpenAiService : IOpenAiService
     {
-        private readonly bool _useMockData; //This is so we can run Ai Service tests without hitting the OpenAI API and spending money.
+        private readonly bool _useMockData; //This is so we can run Ai Service tests without hitting the OpenAI API if don't want to spend money.
         private readonly string _defaultModel;
         private readonly string _apiKey;
 
@@ -18,7 +18,7 @@ namespace backend.Services.Implementations
             _apiKey = config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI API key is not configured");
         }
 
-        public async Task<(string summary, List<string> tasks)> SummarizeAndExtractAsync(string input, string modelOverride = null)
+        public async Task<(string summary, List<string> tasks)> SummarizeAndExtractAsync(string input, string? modelOverride = null)
         {
             if (_useMockData)
                 return ("Mock summary", new() { "Mock task 1", "Mock task 2" });
@@ -69,7 +69,7 @@ namespace backend.Services.Implementations
             return (summary, tasks);
         }
 
-        public async Task<string> GetSummaryOnlyAsync(string input, string modelOverride = null)
+        public async Task<string> GetSummaryOnlyAsync(string input, string? modelOverride = null)
         {
             if (_useMockData)
                 return "Mock summary";
@@ -92,5 +92,4 @@ namespace backend.Services.Implementations
             return raw;
         }
     }
-
 }

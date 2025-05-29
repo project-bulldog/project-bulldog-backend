@@ -53,7 +53,6 @@ builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
-builder.Services.AddScoped<IChunkedSummarizerService, ChunkedSummarizerService>();
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();

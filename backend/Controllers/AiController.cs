@@ -23,7 +23,7 @@ public class AiController : ControllerBase
     public async Task<ActionResult<AiSummaryResponseDto>> SummarizeText([FromBody] CreateAiSummaryRequestDto request)
     {
         var userId = User.GetUserId();
-        var response = await _aiService.SummarizeTextAsync(request, userId);
+        var response = await _aiService.SummarizeAsync(request, userId);
         return Ok(response);
     }
 }

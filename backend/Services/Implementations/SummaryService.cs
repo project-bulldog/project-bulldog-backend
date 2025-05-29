@@ -4,7 +4,6 @@ using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace backend.Services.Implementations
 {
@@ -12,11 +11,13 @@ namespace backend.Services.Implementations
     {
         private readonly BulldogDbContext _context;
         private readonly ILogger<SummaryService> _logger;
+        private readonly IAiService _aiService;
 
-        public SummaryService(BulldogDbContext context, ILogger<SummaryService> logger)
+        public SummaryService(BulldogDbContext context, ILogger<SummaryService> logger, IAiService aiService)
         {
             _context = context;
             _logger = logger;
+            _aiService = aiService;
         }
 
         public async Task<IEnumerable<SummaryDto>> GetSummariesAsync()
@@ -63,8 +64,6 @@ namespace backend.Services.Implementations
                 return null;
             }
 
-            _logger.LogInformation("Fetched summary with id {Id}", id);
-
             return new SummaryDto
             {
                 Id = summary.Id,
@@ -72,7 +71,7 @@ namespace backend.Services.Implementations
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
                 UserId = summary.UserId,
-                UserDisplayName = summary.User != null ? summary.User.DisplayName : "[Unknown]",
+                UserDisplayName = summary.User?.DisplayName ?? "[Unknown]",
                 ActionItems = [.. summary.ActionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
@@ -103,6 +102,57 @@ namespace backend.Services.Implementations
                 .FirstOrDefaultAsync(s => s.Id == summary.Id);
 
             _logger.LogInformation("Created summary with id {Id}", summary.Id);
+
+            return new SummaryDto
+            {
+                Id = summary.Id,
+                OriginalText = summary.OriginalText,
+                SummaryText = summary.SummaryText,
+                CreatedAt = summary.CreatedAt,
+                UserId = summary.UserId,
+                UserDisplayName = loaded?.User?.DisplayName ?? "[Unknown]",
+                ActionItems = [.. loaded?.ActionItems.Select(ai => new ActionItemDto
+                {
+                    Id = ai.Id,
+                    Text = ai.Text,
+                    IsDone = ai.IsDone,
+                    DueAt = ai.DueAt
+                }) ?? []]
+            };
+        }
+
+        public async Task<SummaryDto> GenerateChunkedSummaryWithActionItemsAsync(string input, Guid userId, bool useMapReduce = true, string? modelOverride = null)
+        {
+            var request = new ChunkedSummaryRequestDto(input, userId, useMapReduce, modelOverride);
+            var (summaryText, actionItems) = await _aiService.SummarizeAndExtractActionItemsChunkedAsync(request);
+
+            var summary = new Summary
+            {
+                OriginalText = input,
+                SummaryText = summaryText,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Summaries.Add(summary);
+            await _context.SaveChangesAsync();
+
+            foreach (var ai in actionItems)
+            {
+                _context.ActionItems.Add(new ActionItem
+                {
+                    SummaryId = summary.Id,
+                    Text = ai,
+                    IsDone = false
+                });
+            }
+
+            await _context.SaveChangesAsync();
+
+            var loaded = await _context.Summaries
+                .Include(s => s.User)
+                .Include(s => s.ActionItems)
+                .FirstOrDefaultAsync(s => s.Id == summary.Id);
 
             return new SummaryDto
             {
