@@ -5,16 +5,15 @@ using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using OpenAI;
 
 namespace backend.Services.Implementations;
 
 public class AiService : IAiService
 {
     private readonly BulldogDbContext _context;
-    private readonly OpenAIService _openAiService;
+    private readonly IOpenAiService _openAiService;
 
-    public AiService(BulldogDbContext context, OpenAIService openAiService)
+    public AiService(BulldogDbContext context, IOpenAiService openAiService)
     {
         _context = context;
         _openAiService = openAiService;
@@ -65,5 +64,4 @@ public class AiService : IAiService
             }
         };
     }
-
 }

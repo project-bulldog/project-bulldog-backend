@@ -1,31 +1,28 @@
+using backend.Services.Interfaces;
 using OpenAI.Chat;
 
 namespace backend.Services.Implementations
 {
-    public class OpenAIService
+    public class OpenAiService : IOpenAiService
     {
-        private readonly ChatClient? _chat;
-        private readonly bool _useMock;
+        private readonly ChatClient _chat;
+        private readonly bool _useMockData; //This is so we can run Ai Service tests without hitting the OpenAI API and spending money.
 
-        public OpenAIService(IConfiguration config)
+        public OpenAiService(IConfiguration config)
         {
-            if (config == null)
-                throw new ArgumentNullException(nameof(config));
+            ArgumentNullException.ThrowIfNull(config);
 
-            _useMock = config.GetValue<bool>("OpenAI:UseMock");
+            _useMockData = config.GetValue<bool>("OpenAI:UseMock");
 
-            if (!_useMock)
-            {
-                // Pull model name & key from config
-                var model = config["OpenAI:Model"] ?? "gpt-3.5-turbo";
-                var apiKey = config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI API key is not configured");
-                _chat = new ChatClient(model: model, apiKey: apiKey);
-            }
+            // Pull model name & key from config
+            var model = config["OpenAI:Model"] ?? "gpt-3.5-turbo";
+            var apiKey = config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI API key is not configured");
+            _chat = new ChatClient(model: model, apiKey: apiKey);
         }
 
         public async Task<(string summary, List<string> tasks)> SummarizeAndExtractAsync(string input)
         {
-            if (_useMock)
+            if (_useMockData)
                 return ("Mock summary", new() { "Mock task 1", "Mock task 2" });
 
             var prompt = $"""
@@ -71,6 +68,5 @@ namespace backend.Services.Implementations
 
             return (summary, tasks);
         }
-
     }
 }
