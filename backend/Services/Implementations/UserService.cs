@@ -3,6 +3,7 @@ using backend.Dtos.ActionItems;
 using backend.Dtos.Auth;
 using backend.Dtos.Summaries;
 using backend.Dtos.Users;
+using backend.Helpers;
 using backend.Models;
 using backend.Services.Auth;
 using backend.Services.Interfaces;
@@ -110,7 +111,8 @@ namespace backend.Services.Implementations
         {
             if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
             {
-                _logger.LogWarning("Registration failed: Email {Email} already registered", dto.Email);
+                _logger.LogWarning("Registration failed: Email {Email} already registered", LogSanitizer.SanitizeForLog(dto.Email));
+
                 throw new InvalidOperationException("Email already registered.");
             }
 
@@ -140,7 +142,7 @@ namespace backend.Services.Implementations
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                _logger.LogWarning("Login failed: User with email {Email} not found", request.Email);
+                _logger.LogWarning("Login failed: User with email {Email} not found", LogSanitizer.SanitizeForLog(request.Email));
                 throw new InvalidOperationException("Invalid credentials");
             }
 
