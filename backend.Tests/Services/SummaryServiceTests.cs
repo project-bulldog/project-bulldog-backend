@@ -2,6 +2,7 @@ using backend.Data;
 using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Implementations;
+using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -11,6 +12,7 @@ public class SummaryServiceTests : IDisposable
 {
     private readonly Mock<ILogger<SummaryService>> _loggerMock;
     private readonly BulldogDbContext _context;
+    private readonly Mock<IAiService> _aiServiceMock;
     private readonly SummaryService _service;
 
     public SummaryServiceTests()
@@ -20,7 +22,8 @@ public class SummaryServiceTests : IDisposable
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _context = new BulldogDbContext(options);
-        _service = new SummaryService(_context, _loggerMock.Object);
+        _aiServiceMock = new Mock<IAiService>();
+        _service = new SummaryService(_context, _loggerMock.Object, _aiServiceMock.Object);
     }
 
 
