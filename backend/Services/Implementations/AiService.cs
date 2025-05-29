@@ -5,48 +5,42 @@ using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using OpenAI;
 
 namespace backend.Services.Implementations;
 
 public class AiService : IAiService
 {
     private readonly BulldogDbContext _context;
+    private readonly OpenAIService _openAiService;
 
-    public AiService(BulldogDbContext context)
+    public AiService(BulldogDbContext context, OpenAIService openAiService)
     {
         _context = context;
+        _openAiService = openAiService;
     }
 
     public async Task<AiSummaryResponseDto> SummarizeTextAsync(CreateAiSummaryRequestDto request, Guid userId)
     {
-        // TODO: Call OpenAI API here. For now, mock result.
+        // 🔥 Call OpenAI with the input text
+        var (summaryText, actionItemTexts) = await _openAiService.SummarizeAndExtractAsync(request.InputText);
+
         var summary = new Summary
         {
             Id = Guid.NewGuid(),
             UserId = userId,
             CreatedAt = DateTime.UtcNow,
             OriginalText = request.InputText,
-            SummaryText = "Mock summary: this is a brief overview of the input text."
+            SummaryText = summaryText
         };
 
-        var actionItems = new List<ActionItem>
+        var actionItems = actionItemTexts.Select(text => new ActionItem
         {
-            new()
-            {
-                Id = Guid.NewGuid(),
-                SummaryId = summary.Id,
-                Text = "Mock task 1 from AI",
-                IsDone = false,
-                DueAt = DateTime.UtcNow.AddDays(3)
-            },
-            new()
-            {
-                Id = Guid.NewGuid(),
-                SummaryId = summary.Id,
-                Text = "Mock task 2 from AI",
-                IsDone = false
-            }
-        };
+            Id = Guid.NewGuid(),
+            SummaryId = summary.Id,
+            Text = text,
+            IsDone = false
+        }).ToList();
 
         await _context.Summaries.AddAsync(summary);
         await _context.ActionItems.AddRangeAsync(actionItems);
@@ -61,14 +55,15 @@ public class AiService : IAiService
                 SummaryText = summary.SummaryText,
                 CreatedAt = summary.CreatedAt,
                 UserId = summary.UserId,
-                ActionItems = [.. actionItems.Select(ai => new ActionItemDto
+                ActionItems = actionItems.Select(ai => new ActionItemDto
                 {
                     Id = ai.Id,
                     Text = ai.Text,
                     IsDone = ai.IsDone,
                     DueAt = ai.DueAt
-                })]
+                }).ToList()
             }
         };
     }
+
 }

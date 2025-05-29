@@ -50,6 +50,7 @@ builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
+builder.Services.AddScoped<OpenAIService>();
 
 var app = builder.Build();
 
