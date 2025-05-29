@@ -3,6 +3,7 @@ using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers;
 
@@ -12,11 +13,13 @@ namespace backend.Controllers;
 public class SummariesController : ControllerBase
 {
     private readonly ISummaryService _summaryService;
+    private readonly IChunkedSummarizerService _chunkedSummarizerService;
     private readonly ILogger<SummariesController> _logger;
 
-    public SummariesController(ISummaryService summaryService, ILogger<SummariesController> logger)
+    public SummariesController(ISummaryService summaryService, IChunkedSummarizerService chunkedSummarizerService, ILogger<SummariesController> logger)
     {
         _summaryService = summaryService;
+        _chunkedSummarizerService = chunkedSummarizerService;
         _logger = logger;
     }
 
@@ -54,6 +57,17 @@ public class SummariesController : ControllerBase
 
         _logger.LogInformation("Summary created with id {Id}", createdSummary.Id);
         return CreatedAtAction(nameof(GetSummary), new { id = createdSummary.Id }, createdSummary);
+    }
+
+    // POST: api/summaries/chunked-summary
+    [HttpPost("chunked-summary")]
+    public async Task<IActionResult> GetChunkedSummary([FromBody] string input)
+    {
+        var model = Request.Headers["X-Model"].FirstOrDefault() ?? "gpt-3.5-turbo";
+        var useMapReduce = Request.Headers["X-MapReduce"].FirstOrDefault()?.ToLower() != "false";
+
+        var summary = await _chunkedSummarizerService.SummarizeLongTextAsync(input, useMapReduce, model);
+        return Ok(summary);
     }
 
     // PUT: api/summaries/{id}

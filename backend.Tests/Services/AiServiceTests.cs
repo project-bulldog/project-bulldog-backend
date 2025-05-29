@@ -40,7 +40,7 @@ public class AiServiceTests : IDisposable
         var expectedActionItems = new List<string> { "Action 1", "Action 2" };
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(inputText))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
@@ -81,7 +81,7 @@ public class AiServiceTests : IDisposable
         var expectedActionItems = new List<string>();
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(inputText))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
@@ -117,7 +117,7 @@ public class AiServiceTests : IDisposable
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(inputText))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new Exception("OpenAI service error"));
 
         // Act & Assert
@@ -135,7 +135,7 @@ public class AiServiceTests : IDisposable
         var expectedActionItems = new List<string> { "Action 1" };
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(inputText))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto { InputText = inputText };
