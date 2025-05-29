@@ -1,8 +1,10 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
+using backend.Dtos.Auth;
 using backend.Dtos.Summaries;
 using backend.Dtos.Users;
 using backend.Models;
+using backend.Services.Auth;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,11 +14,13 @@ namespace backend.Services.Implementations
     {
         private readonly BulldogDbContext _context;
         private readonly ILogger<UserService> _logger;
+        private readonly IJwtService _jwt;
 
-        public UserService(BulldogDbContext context, ILogger<UserService> logger)
+        public UserService(BulldogDbContext context, ILogger<UserService> logger, IJwtService jwt)
         {
             _context = context;
             _logger = logger;
+            _jwt = jwt;
         }
 
         public async Task<IEnumerable<UserDto>> GetUsersAsync()
@@ -102,6 +106,55 @@ namespace backend.Services.Implementations
             };
         }
 
+        public async Task<AuthResponse> RegisterUserAsync(CreateUserDto dto)
+        {
+            if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+            {
+                _logger.LogWarning("Registration failed: Email {Email} already registered", dto.Email);
+                throw new InvalidOperationException("Email already registered.");
+            }
+
+            var user = new User
+            {
+                Id = Guid.NewGuid(),
+                Email = dto.Email,
+                DisplayName = dto.DisplayName
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("User registered successfully with id {Id}", user.Id);
+
+            var token = _jwt.GenerateToken(user);
+            return new AuthResponse(token, new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName
+            });
+        }
+
+        public async Task<AuthResponse> LoginUserAsync(LoginRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            if (user == null)
+            {
+                _logger.LogWarning("Login failed: User with email {Email} not found", request.Email);
+                throw new InvalidOperationException("Invalid credentials");
+            }
+
+            var token = _jwt.GenerateToken(user);
+            _logger.LogInformation("User {Id} logged in successfully", user.Id);
+
+            return new AuthResponse(token, new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName
+            });
+        }
+
         public async Task<bool> UpdateUserAsync(Guid id, UpdateUserDto updateDto)
         {
             var user = await _context.Users.FindAsync(id);
@@ -132,7 +185,6 @@ namespace backend.Services.Implementations
                 throw;
             }
         }
-
 
         public async Task<bool> DeleteUserAsync(Guid id)
         {

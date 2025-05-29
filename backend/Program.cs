@@ -28,7 +28,7 @@ builder.Services.AddDbContext<BulldogDbContext>(options =>
 });
 
 // 4. Authentication/Authorization
-builder.Services.AddScoped<JwtService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {

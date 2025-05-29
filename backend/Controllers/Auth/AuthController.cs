@@ -1,11 +1,8 @@
-using backend.Data;
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
-using backend.Models;
-using backend.Services.Auth;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers.Auth;
 
@@ -13,54 +10,44 @@ namespace backend.Controllers.Auth;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
-    private readonly BulldogDbContext _context;
-    private readonly JwtService _jwt;
+    private readonly IUserService _userService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(BulldogDbContext context, JwtService jwt)
+    public AuthController(IUserService userService, ILogger<AuthController> logger)
     {
-        _context = context;
-        _jwt = jwt;
+        _userService = userService;
+        _logger = logger;
     }
-
 
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(CreateUserDto dto)
     {
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
-            return BadRequest("Email already registered.");
-
-        var user = new User
+        try
         {
-            Id = Guid.NewGuid(),
-            Email = dto.Email,
-            DisplayName = dto.DisplayName
-        };
-
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        var token = _jwt.GenerateToken(user);
-
-        var response = new AuthResponse(token, new UserDto
+            var response = await _userService.RegisterUserAsync(dto);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
         {
-            Id = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName
-        });
-
-        return Ok(response);
+            _logger.LogWarning("Registration failed: {Message}", ex.Message);
+            return BadRequest(ex.Message);
+        }
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
-        if (user == null)
-            return Unauthorized();
-
-        var token = _jwt.GenerateToken(user);
-        return Ok(new { token });
+        try
+        {
+            var response = await _userService.LoginUserAsync(request);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning("Login failed: {Message}", ex.Message);
+            return Unauthorized(ex.Message);
+        }
     }
 }

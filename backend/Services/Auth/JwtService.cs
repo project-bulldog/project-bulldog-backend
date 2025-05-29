@@ -6,7 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace backend.Services.Auth;
 
-public class JwtService
+public class JwtService : IJwtService
 {
     private readonly string _jwtSecret;
     private readonly int _jwtLifespanMinutes;
