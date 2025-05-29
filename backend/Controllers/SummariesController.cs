@@ -1,12 +1,14 @@
 using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class SummariesController : ControllerBase
 {
     private readonly ISummaryService _summaryService;

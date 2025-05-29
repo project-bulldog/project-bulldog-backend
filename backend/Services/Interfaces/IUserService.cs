@@ -1,3 +1,4 @@
+using backend.Dtos.Auth;
 using backend.Dtos.Users;
 using backend.Models;
 
@@ -10,4 +11,6 @@ public interface IUserService
     Task<UserDto> CreateUserAsync(CreateUserDto createDto);
     Task<bool> UpdateUserAsync(Guid id, UpdateUserDto updateDto);
     Task<bool> DeleteUserAsync(Guid id);
+    Task<AuthResponse> RegisterUserAsync(CreateUserDto dto);
+    Task<AuthResponse> LoginUserAsync(LoginRequest request);
 }
