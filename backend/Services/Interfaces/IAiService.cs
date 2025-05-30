@@ -8,10 +8,10 @@ public interface IAiService
     Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request, Guid userId);
 
     // Summarize long-form text (with chunking + optional map-reduce)
-    Task<string> SummarizeChunkedAsync(ChunkedSummaryRequestDto request);
+    Task<string> SummarizeChunkedAsync(AiChunkedSummaryResponseDto request);
 
     // Summarize long-form text and extract action items (with chunking + optional map-reduce)
-    Task<(string summary, List<string> tasks)> SummarizeAndExtractActionItemsChunkedAsync(ChunkedSummaryRequestDto request);
+    Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request);
 }
 
 

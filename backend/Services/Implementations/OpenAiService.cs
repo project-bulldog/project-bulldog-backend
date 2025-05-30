@@ -18,7 +18,7 @@ namespace backend.Services.Implementations
             _apiKey = config["OpenAI:ApiKey"] ?? throw new InvalidOperationException("OpenAI API key is not configured");
         }
 
-        public async Task<(string summary, List<string> tasks)> SummarizeAndExtractAsync(string input, string? modelOverride = null)
+        public async Task<(string summary, List<string> actionItems)> SummarizeAndExtractAsync(string input, string? modelOverride = null)
         {
             if (_useMockData)
                 return ("Mock summary", new() { "Mock task 1", "Mock task 2" });
@@ -51,7 +51,7 @@ namespace backend.Services.Implementations
 
             // 🛡️ Defensive parsing
             string summary = "No summary available";
-            var tasks = new List<string>();
+            var actionItems = new List<string>();
 
             var lines = raw.Split('\n', StringSplitOptions.RemoveEmptyEntries);
             foreach (var line in lines)
@@ -62,11 +62,11 @@ namespace backend.Services.Implementations
                 }
                 else if (line.StartsWith("- "))
                 {
-                    tasks.Add(line[2..].Trim());
+                    actionItems.Add(line[2..].Trim());
                 }
             }
 
-            return (summary, tasks);
+            return (summary, actionItems);
         }
 
         public async Task<string> GetSummaryOnlyAsync(string input, string? modelOverride = null)

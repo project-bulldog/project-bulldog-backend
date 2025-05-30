@@ -11,13 +11,11 @@ namespace backend.Controllers;
 public class SummariesController : ControllerBase
 {
     private readonly ISummaryService _summaryService;
-    private readonly IAiService _aiService;
     private readonly ILogger<SummariesController> _logger;
 
-    public SummariesController(ISummaryService summaryService, IAiService aiService, ILogger<SummariesController> logger)
+    public SummariesController(ISummaryService summaryService, ILogger<SummariesController> logger)
     {
         _summaryService = summaryService;
-        _aiService = aiService;
         _logger = logger;
     }
 
@@ -55,28 +53,6 @@ public class SummariesController : ControllerBase
 
         _logger.LogInformation("Summary created with id {Id}", createdSummary.Id);
         return CreatedAtAction(nameof(GetSummary), new { id = createdSummary.Id }, createdSummary);
-    }
-
-    // POST: api/summaries/chunked-summary
-    [HttpPost("generate-chunked-summary")]
-    public async Task<IActionResult> GenerateChunkedSummary([FromBody] ChunkedSummaryRequestDto request)
-    {
-        var summary = await _aiService.SummarizeChunkedAsync(request);
-        return Ok(summary);
-    }
-
-    // POST: api/summaries/generate-chunked-summary-with-actionItems
-    [HttpPost("generate-chunked-summary-with-actionItems")]
-    public async Task<IActionResult> GenerateChunkedSummaryWithActionItems([FromBody] ChunkedSummaryRequestDto request)
-    {
-        var result = await _summaryService.GenerateChunkedSummaryWithActionItemsAsync(
-            request.Input,
-            request.UserId,
-            request.UseMapReduce ?? true,
-            request.Model ?? "gpt-3.5-turbo"
-        );
-
-        return Ok(result);
     }
 
     // PUT: api/summaries/{id}
