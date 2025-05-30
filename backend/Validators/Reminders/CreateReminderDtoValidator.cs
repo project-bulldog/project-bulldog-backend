@@ -12,16 +12,11 @@ public class CreateReminderDtoValidator : AbstractValidator<CreateReminderDto>
             .MaximumLength(500).WithMessage("Message must be 500 characters or fewer.");
 
         RuleFor(x => x.ReminderTime)
-            .Must(BeInTheFuture).WithMessage("Reminder time must be in the future.");
+            .Must((dto, reminderTime) => reminderTime > DateTime.UtcNow.AddSeconds(-10))
+            .WithMessage("Reminder time must be at least 1 second in the future.");
 
-        // If ActionItemId is present, must be a valid Guid
         RuleFor(x => x.ActionItemId)
             .Must(id => id == null || id != Guid.Empty)
             .WithMessage("Invalid ActionItem ID.");
-    }
-
-    private bool BeInTheFuture(DateTime reminderTime)
-    {
-        return reminderTime > DateTime.UtcNow;
     }
 }

@@ -12,11 +12,7 @@ public class UpdateReminderDtoValidator : AbstractValidator<UpdateReminderDto>
             .MaximumLength(500).WithMessage("Message must be 500 characters or fewer.");
 
         RuleFor(x => x.ReminderTime)
-            .Must(BeInTheFuture).WithMessage("Reminder time must be in the future.");
-    }
-
-    private bool BeInTheFuture(DateTime reminderTime)
-    {
-        return reminderTime > DateTime.UtcNow;
+            .Must((dto, reminderTime) => reminderTime > DateTime.UtcNow.AddSeconds(-10))
+            .WithMessage("Reminder time must be at least 1 second in the future.");
     }
 }
