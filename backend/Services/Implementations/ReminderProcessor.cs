@@ -7,11 +7,13 @@ public class ReminderProcessor : IReminderProcessor
 {
     private readonly BulldogDbContext _context;
     private readonly ILogger<ReminderProcessor> _logger;
+    private readonly INotificationService _notificationService;
 
-    public ReminderProcessor(BulldogDbContext context, ILogger<ReminderProcessor> logger)
+    public ReminderProcessor(BulldogDbContext context, ILogger<ReminderProcessor> logger, INotificationService notificationService)
     {
         _context = context;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task ProcessDueRemindersAsync(CancellationToken cancellationToken = default)
@@ -29,8 +31,20 @@ public class ReminderProcessor : IReminderProcessor
                 reminder.Message,
                 reminder.ActionItem?.Text,
                 reminder.UserId);
+            try
+            {
+                // 🔔 Send fake notification
+                await _notificationService.SendReminderAsync(
+                    reminder.UserId,
+                    "You have a reminder",
+                    reminder.Message);
 
-            reminder.IsSent = true;
+                reminder.IsSent = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to send reminder notification to user {UserId}", reminder.UserId);
+            }
         }
 
         await _context.SaveChangesAsync(cancellationToken);

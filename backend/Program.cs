@@ -74,6 +74,8 @@ builder.Services.AddScoped<IOpenAiService, OpenAiService>();
 builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
+builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
+
 
 
 //Fluent Validation
@@ -113,6 +115,9 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
 //Test logging
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+
+app.MapGet("/server-time", () => Results.Ok(DateTime.UtcNow));
 
 //Exception Handling
 app.UseExceptionHandler("/error");
