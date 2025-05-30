@@ -2,6 +2,10 @@ using backend.Data;
 using backend.Models;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Channel;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.WindowsServer.TelemetryChannel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -12,7 +16,7 @@ public class ReminderProcessorTests : IDisposable
 {
     private readonly BulldogDbContext _context;
     private readonly Mock<ILogger<ReminderProcessor>> _loggerMock;
-    private readonly Mock<INotificationService> _notificationServiceMock;
+    private readonly TelemetryClient _telemetryClient;
 
     public ReminderProcessorTests()
     {
@@ -22,6 +26,13 @@ public class ReminderProcessorTests : IDisposable
 
         _context = new BulldogDbContext(options);
         _loggerMock = new Mock<ILogger<ReminderProcessor>>();
+
+        var config = new TelemetryConfiguration
+        {
+            InstrumentationKey = "00000000-0000-0000-0000-000000000000",
+            TelemetryChannel = new InMemoryChannel { DeveloperMode = true }
+        };
+        _telemetryClient = new TelemetryClient(config);
     }
 
     public void Dispose()
@@ -41,7 +52,8 @@ public class ReminderProcessorTests : IDisposable
             UserId = userId,
             Message = "Test reminder 1",
             ReminderTime = DateTime.UtcNow.AddMinutes(-1),
-            IsSent = false
+            IsSent = false,
+            MaxSendAttempts = 3
         };
         var reminder2 = new Reminder
         {
@@ -49,7 +61,8 @@ public class ReminderProcessorTests : IDisposable
             UserId = userId,
             Message = "Test reminder 2",
             ReminderTime = DateTime.UtcNow.AddMinutes(10),
-            IsSent = false
+            IsSent = false,
+            MaxSendAttempts = 3
         };
 
         _context.Reminders.AddRange(reminder1, reminder2);
@@ -60,7 +73,7 @@ public class ReminderProcessorTests : IDisposable
             .Setup(x => x.SendReminderAsync(userId, It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
-        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object);
+        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object, _telemetryClient);
 
         // Act
         await processor.ProcessDueRemindersAsync();
@@ -70,7 +83,6 @@ public class ReminderProcessorTests : IDisposable
         Assert.True(updatedReminders.Single(r => r.Id == reminder1.Id).IsSent);
         Assert.False(updatedReminders.Single(r => r.Id == reminder2.Id).IsSent);
     }
-
 
     [Fact]
     public async Task ProcessDueRemindersAsync_SetsSentAtAndDoesNotIncrementSendAttempts_OnSuccess()
@@ -85,7 +97,8 @@ public class ReminderProcessorTests : IDisposable
             Message = "Success test",
             ReminderTime = now.AddMinutes(-1),
             IsSent = false,
-            SendAttempts = 0
+            SendAttempts = 0,
+            MaxSendAttempts = 3
         };
 
         _context.Reminders.Add(reminder);
@@ -96,7 +109,7 @@ public class ReminderProcessorTests : IDisposable
             .Setup(x => x.SendReminderAsync(userId, It.IsAny<string>(), It.IsAny<string>()))
             .Returns(Task.CompletedTask);
 
-        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object);
+        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object, _telemetryClient);
 
         // Act
         await processor.ProcessDueRemindersAsync();
@@ -121,7 +134,8 @@ public class ReminderProcessorTests : IDisposable
             Message = "Failure test",
             ReminderTime = now.AddMinutes(-1),
             IsSent = false,
-            SendAttempts = 0
+            SendAttempts = 0,
+            MaxSendAttempts = 3
         };
 
         _context.Reminders.Add(reminder);
@@ -132,7 +146,7 @@ public class ReminderProcessorTests : IDisposable
             .Setup(x => x.SendReminderAsync(userId, It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new Exception("Mock failure"));
 
-        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object);
+        var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object, _telemetryClient);
 
         // Act
         await processor.ProcessDueRemindersAsync();
@@ -143,5 +157,4 @@ public class ReminderProcessorTests : IDisposable
         Assert.Null(updated.SentAt);
         Assert.Equal(1, updated.SendAttempts);
     }
-
 }
