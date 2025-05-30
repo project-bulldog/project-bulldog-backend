@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -11,9 +12,11 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(BulldogDbContext))]
-    partial class BulldogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250530184547_AddSentAtToReminders")]
+    partial class AddSentAtToReminders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -62,9 +65,6 @@ namespace backend.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.Property<int>("MaxSendAttempts")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -72,9 +72,6 @@ namespace backend.Migrations
 
                     b.Property<DateTime>("ReminderTime")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("SendAttempts")
-                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("SentAt")
                         .HasColumnType("timestamp with time zone");

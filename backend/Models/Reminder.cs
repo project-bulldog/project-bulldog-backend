@@ -11,6 +11,10 @@ namespace backend.Models
         public DateTime ReminderTime { get; set; }
 
         public bool IsSent { get; set; } = false;
+        public DateTime? SentAt { get; set; }
+        public int SendAttempts { get; set; } = 0;
+        public int MaxSendAttempts { get; set; } = 3;
+
 
         public Guid? ActionItemId { get; set; }
         public ActionItem? ActionItem { get; set; }

@@ -22,7 +22,7 @@ public class ReminderProcessor : IReminderProcessor
 
         var dueReminders = await _context.Reminders
             .Include(r => r.ActionItem)
-            .Where(r => !r.IsSent && r.ReminderTime <= now)
+            .Where(r => !r.IsSent && r.ReminderTime <= now && r.SendAttempts < r.MaxSendAttempts)
             .ToListAsync(cancellationToken);
 
         foreach (var reminder in dueReminders)
@@ -40,10 +40,12 @@ public class ReminderProcessor : IReminderProcessor
                     reminder.Message);
 
                 reminder.IsSent = true;
+                reminder.SentAt = DateTime.UtcNow;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "❌ Failed to send reminder notification to user {UserId}", reminder.UserId);
+                reminder.SendAttempts += 1;
             }
         }
 
