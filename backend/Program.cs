@@ -6,9 +6,23 @@ using backend.Services.Interfaces;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddApplicationInsights();
+builder.Logging.AddFilter<ApplicationInsightsLoggerProvider>("", LogLevel.Information);
+
+//Application Insights
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+});
+
 
 //Configuration
 builder.Configuration
@@ -53,13 +67,20 @@ builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
+builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
+builder.Services.AddHostedService<ReminderCheckerService>();
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
-
 var app = builder.Build();
+
+//Test logging
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogTrace("AA[🐶 BULLDOG] TRACE log");
+logger.LogDebug("AA[🐶 BULLDOG] DEBUG log");
+logger.LogInformation("AA[🐶 BULLDOG] INFO log ");
 
 //Exception Handling
 app.UseExceptionHandler("/error");
