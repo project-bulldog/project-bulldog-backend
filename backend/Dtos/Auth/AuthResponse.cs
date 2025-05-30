@@ -1,5 +1,3 @@
-
-
 using backend.Dtos.Users;
 
 namespace backend.Dtos.Auth;

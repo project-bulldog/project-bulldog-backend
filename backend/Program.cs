@@ -1,14 +1,32 @@
 using System.Text;
+using System.Text.Json;
 using backend.Data;
+using backend.HealthChecks;
+using backend.Infrastructure;
 using backend.Services.Auth;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+//Logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddApplicationInsights();
+builder.Logging.AddFilter<ApplicationInsightsLoggerProvider>("", LogLevel.Information);
+
+//Application Insights
+builder.Services.AddApplicationInsightsTelemetry(options =>
+{
+    options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
+});
+
 
 //Configuration
 builder.Configuration
@@ -53,13 +71,48 @@ builder.Services.AddScoped<ISummaryService, SummaryService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
+builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
+builder.Services.AddHostedService<ReminderCheckerService>();
+builder.Services.AddSingleton<ReminderServiceState>();
+
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
+//Health Checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<BulldogDbContext>("Database")
+    .AddCheck<ReminderHealthCheck>("ReminderChecker");
+
 
 var app = builder.Build();
+
+//Health Checks
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+
+        var response = new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description
+            }),
+            totalDuration = report.TotalDuration
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+    }
+});
+
+//Test logging
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 //Exception Handling
 app.UseExceptionHandler("/error");

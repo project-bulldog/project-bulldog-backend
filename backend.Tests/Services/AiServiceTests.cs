@@ -158,7 +158,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph.", 50));
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -177,7 +177,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = "Short input text.";
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, true, "gpt-4-turbo");
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-4-turbo");
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -196,7 +196,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("Paragraph content.", 30));
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -215,7 +215,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 200));
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, false);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, false);
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -234,7 +234,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 50));
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         // Mock the SummarizeAndExtractAsync for chunk processing
         _openAiServiceMock
@@ -263,7 +263,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = "Short input text.";
-        var request = new ChunkedSummaryRequestDto(input, _testUserId, true, "gpt-4-turbo");
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-4-turbo");
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))

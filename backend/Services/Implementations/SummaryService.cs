@@ -123,7 +123,7 @@ namespace backend.Services.Implementations
 
         public async Task<SummaryDto> GenerateChunkedSummaryWithActionItemsAsync(string input, Guid userId, bool useMapReduce = true, string? modelOverride = null)
         {
-            var request = new ChunkedSummaryRequestDto(input, userId, useMapReduce, modelOverride);
+            var request = new AiChunkedSummaryResponseDto(input, userId, useMapReduce, modelOverride);
             var (summaryText, actionItems) = await _aiService.SummarizeAndExtractActionItemsChunkedAsync(request);
 
             var summary = new Summary

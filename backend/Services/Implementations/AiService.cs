@@ -69,7 +69,7 @@ public class AiService : IAiService
     }
 
     #region Chunking methods
-    public async Task<string> SummarizeChunkedAsync(ChunkedSummaryRequestDto request)
+    public async Task<string> SummarizeChunkedAsync(AiChunkedSummaryResponseDto request)
     {
         string model = request.Model ?? DefaultModel;
         bool useMapReduce = request.UseMapReduce ?? true;
@@ -101,7 +101,7 @@ public class AiService : IAiService
         return await _openAiService.GetSummaryOnlyAsync($"Summarize this combined summary:\n{stitchedSummaryInput}", model);
     }
 
-    public async Task<(string summary, List<string> tasks)> SummarizeAndExtractActionItemsChunkedAsync(ChunkedSummaryRequestDto request)
+    public async Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request)
     {
         string model = request.Model ?? DefaultModel;
         bool useMapReduce = request.UseMapReduce ?? true;
@@ -123,12 +123,12 @@ public class AiService : IAiService
 
         foreach (var chunk in chunks)
         {
-            var (summary, tasks) = await _openAiService.SummarizeAndExtractAsync(chunk, model);
+            var (summary, actionItems) = await _openAiService.SummarizeAndExtractAsync(chunk, model);
             if (!string.IsNullOrEmpty(summary))
             {
                 summaries.Add(summary);
             }
-            allTasks.AddRange(tasks);
+            allTasks.AddRange(actionItems);
         }
 
         if (!useMapReduce || summaries.Count == 0)
