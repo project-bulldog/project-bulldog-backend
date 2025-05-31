@@ -153,20 +153,4 @@ using (var scope = app.Services.CreateScope())
 //Endpoint Routing
 app.MapControllers();
 
-app.MapGet("/routes", (EndpointDataSource ep, ILogger<Program> logger) =>
-{
-    var routes = ep.Endpoints
-        .OfType<RouteEndpoint>()
-        .Select(e => e.RoutePattern.RawText)
-        .ToList();
-
-    logger.LogInformation("🚦 Registered routes:");
-    foreach (var route in routes)
-    {
-        logger.LogInformation("🔹 {Route}", route);
-    }
-
-    return Results.Ok(routes);
-});
-
 app.Run();
