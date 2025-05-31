@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace backend.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/actionitems")]
 [Authorize]
 public class ActionItemsController : ControllerBase
 {

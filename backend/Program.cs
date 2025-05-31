@@ -39,6 +39,10 @@ builder.Configuration
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddRouting(options =>
+{
+    options.LowercaseUrls = true;
+});
 
 //Database
 builder.Services.AddDbContext<BulldogDbContext>(options =>
@@ -75,8 +79,6 @@ builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
-
-
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();
