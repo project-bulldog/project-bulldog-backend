@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using backend.Data;
 using backend.HealthChecks;
 using backend.Infrastructure;
@@ -89,6 +90,23 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<BulldogDbContext>("Database")
     .AddCheck<ReminderHealthCheck>("ReminderChecker");
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,                         // Max 10 requests
+                Window = TimeSpan.FromMinutes(1),         // Per 1 minute window
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0                            // No queueing; reject extra
+            }));
+
+    options.RejectionStatusCode = 429; // HTTP 429 Too Many Requests
+});
+
+
 
 var app = builder.Build();
 
@@ -126,6 +144,7 @@ app.UseExceptionHandler("/error");
 
 //Security Middleware
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
