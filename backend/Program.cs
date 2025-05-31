@@ -152,4 +152,17 @@ using (var scope = app.Services.CreateScope())
 
 //Endpoint Routing
 app.MapControllers();
+
+var routeLog = app.Services.GetRequiredService<EndpointDataSource>()
+    .Endpoints
+    .OfType<RouteEndpoint>()
+    .Select(e => e.RoutePattern.RawText)
+    .ToList();
+
+Console.WriteLine("🚦 Registered routes:");
+foreach (var route in routeLog)
+{
+    Console.WriteLine("🔹 " + route);
+}
+
 app.Run();
