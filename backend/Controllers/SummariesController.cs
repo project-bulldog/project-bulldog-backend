@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace backend.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/summaries")]
 [Authorize]
 public class SummariesController : ControllerBase
 {

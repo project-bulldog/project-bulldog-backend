@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace backend.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/ai")]
 [Authorize]
 public class AiController : ControllerBase
 {
