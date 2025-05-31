@@ -159,10 +159,10 @@ var routeLog = app.Services.GetRequiredService<EndpointDataSource>()
     .Select(e => e.RoutePattern.RawText)
     .ToList();
 
-Console.WriteLine("🚦 Registered routes:");
+logger.LogInformation("🚦 Registered routes:");
 foreach (var route in routeLog)
 {
-    Console.WriteLine("🔹 " + route);
+    logger.LogInformation("🔹 {Route}", route);
 }
 
 app.Run();
