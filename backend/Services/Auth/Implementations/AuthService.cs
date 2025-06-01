@@ -49,7 +49,7 @@ public class AuthService : IAuthService
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.None, // only way we can get the refresh token to work because of the CORS policy
             Expires = refreshToken.ExpiresAt
         });
 
