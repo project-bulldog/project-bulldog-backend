@@ -135,9 +135,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
-            "https://project-bulldog-frontend-git-qa-calatheazs-projects.vercel.app/", // qa
-            "https://project-bulldog-frontend-git-uat-calatheazs-projects.vercel.app/", // uat
-            "https://project-bulldog-frontend-git-main-calatheazs-projects.vercel.app/" // main
+            "https://project-bulldog-frontend-git-qa-calatheazs-projects.vercel.app",
+            "https://project-bulldog-frontend-git-uat-calatheazs-projects.vercel.app",
+            "https://project-bulldog-frontend-git-main-calatheazs-projects.vercel.app"
         )
         .AllowAnyHeader()
         .AllowAnyMethod()
@@ -181,13 +181,14 @@ app.UseExceptionHandler("/error");
 
 //Security Middleware
 app.UseCors("AllowFrontend");
+logger.LogInformation("✅ CORS policy 'AllowFrontend' applied.");
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 //Swagger (in dev/prod)
-if (app.Environment.IsDevelopment() || app.Environment.IsProduction())
+if (!app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
