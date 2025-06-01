@@ -4,7 +4,8 @@ using System.Threading.RateLimiting;
 using backend.Data;
 using backend.HealthChecks;
 using backend.Infrastructure;
-using backend.Services.Auth;
+using backend.Services.Auth.Implementations;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using FluentValidation;
@@ -46,14 +47,28 @@ builder.Services.AddRouting(options =>
 });
 
 //Database
+var env = builder.Environment.EnvironmentName;
+
+var connectionName = env switch
+{
+    "Development" => "DevConnection",
+    "QA" => "QaConnection",
+    "Production" => "ProdConnection",
+    _ => "DefaultConnection"
+};
+
+var connString = builder.Configuration.GetConnectionString(connectionName)
+    ?? throw new Exception($"Missing connection string for environment: {env}");
+
+// Database
 builder.Services.AddDbContext<BulldogDbContext>(options =>
 {
-    var connString = builder.Configuration.GetConnectionString("DefaultConnection");
     options.UseNpgsql(connString);
 });
 
 //Authentication/Authorization
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
@@ -68,8 +83,10 @@ builder.Services.AddAuthentication("Bearer")
         };
     });
 builder.Services.AddAuthorization();
+builder.Services.AddDataProtection();
 
 //Application Services
+builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IActionItemService, ActionItemService>();
 builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddScoped<ISummaryService, SummaryService>();
@@ -80,6 +97,7 @@ builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
+
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();

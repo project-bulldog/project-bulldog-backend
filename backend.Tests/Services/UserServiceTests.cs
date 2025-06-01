@@ -2,10 +2,8 @@ using backend.Data;
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
 using backend.Models;
-using backend.Services.Auth;
 using backend.Services.Implementations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -14,7 +12,6 @@ namespace backend.Tests.Services;
 public class UserServiceTests : IDisposable
 {
     private readonly Mock<ILogger<UserService>> _loggerMock;
-    private readonly Mock<IJwtService> _jwtMock;
     private readonly BulldogDbContext _context;
     private readonly UserService _service;
 
@@ -22,14 +19,12 @@ public class UserServiceTests : IDisposable
     {
         _loggerMock = new Mock<ILogger<UserService>>();
 
-        _jwtMock = new Mock<IJwtService>();
-
         var options = new DbContextOptionsBuilder<BulldogDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
         _context = new BulldogDbContext(options);
-        _service = new UserService(_context, _loggerMock.Object, _jwtMock.Object);
+        _service = new UserService(_context, _loggerMock.Object);
     }
 
     [Fact]
@@ -126,6 +121,78 @@ public class UserServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RegisterUserAsync_WithNewEmail_ShouldCreateUser()
+    {
+        // Arrange
+        var dto = new CreateUserDto
+        {
+            Email = "new@test.com",
+            DisplayName = "New User"
+        };
+
+        // Act
+        var result = await _service.RegisterUserAsync(dto);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotEqual(Guid.Empty, result.Id);
+        Assert.Equal(dto.Email, result.Email);
+        Assert.Equal(dto.DisplayName, result.DisplayName);
+
+        // Verify user was created in database
+        var createdUser = await _context.Users.FindAsync(result.Id);
+        Assert.NotNull(createdUser);
+        Assert.Equal(dto.Email, createdUser.Email);
+        Assert.Equal(dto.DisplayName, createdUser.DisplayName);
+    }
+
+    [Fact]
+    public async Task RegisterUserAsync_WithExistingEmail_ShouldThrowException()
+    {
+        // Arrange
+        var existingUser = await CreateTestUser("existing@test.com", "Existing User");
+        var dto = new CreateUserDto
+        {
+            Email = "existing@test.com",
+            DisplayName = "New User"
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.RegisterUserAsync(dto));
+        Assert.Equal("Email already registered.", exception.Message);
+    }
+
+    [Fact]
+    public async Task ValidateUserAsync_WithValidEmail_ShouldReturnUser()
+    {
+        // Arrange
+        var user = await CreateTestUser("test@test.com", "Test User");
+        var request = new LoginRequest("test@test.com");
+
+        // Act
+        var result = await _service.ValidateUserAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal(user.Email, result.Email);
+        Assert.Equal(user.DisplayName, result.DisplayName);
+    }
+
+    [Fact]
+    public async Task ValidateUserAsync_WithInvalidEmail_ShouldThrowException()
+    {
+        // Arrange
+        var request = new LoginRequest("nonexistent@test.com");
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.ValidateUserAsync(request));
+        Assert.Equal("Invalid credentials", exception.Message);
+    }
+
+    [Fact]
     public async Task UpdateUserAsync_WithValidId_ShouldUpdateUser()
     {
         // Arrange
@@ -188,86 +255,10 @@ public class UserServiceTests : IDisposable
         Assert.False(result);
     }
 
-    [Fact]
-    public async Task RegisterUserAsync_WithNewEmail_ShouldCreateUserAndReturnAuthResponse()
+    public void Dispose()
     {
-        // Arrange
-        var dto = new CreateUserDto
-        {
-            Email = "new@test.com",
-            DisplayName = "New User"
-        };
-        var expectedToken = "test.jwt.token";
-        _jwtMock.Setup(x => x.GenerateToken(It.IsAny<User>()))
-            .Returns(expectedToken);
-
-        // Act
-        var result = await _service.RegisterUserAsync(dto);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(expectedToken, result.Token);
-        Assert.NotNull(result.User);
-        Assert.Equal(dto.Email, result.User.Email);
-        Assert.Equal(dto.DisplayName, result.User.DisplayName);
-        Assert.NotEqual(Guid.Empty, result.User.Id);
-
-        // Verify user was created in database
-        var createdUser = await _context.Users.FindAsync(result.User.Id);
-        Assert.NotNull(createdUser);
-        Assert.Equal(dto.Email, createdUser.Email);
-        Assert.Equal(dto.DisplayName, createdUser.DisplayName);
-    }
-
-    [Fact]
-    public async Task RegisterUserAsync_WithExistingEmail_ShouldThrowException()
-    {
-        // Arrange
-        var existingUser = await CreateTestUser("existing@test.com", "Existing User");
-        var dto = new CreateUserDto
-        {
-            Email = "existing@test.com",
-            DisplayName = "New User"
-        };
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RegisterUserAsync(dto));
-        Assert.Equal("Email already registered.", exception.Message);
-    }
-
-    [Fact]
-    public async Task LoginUserAsync_WithValidEmail_ShouldReturnAuthResponse()
-    {
-        // Arrange
-        var user = await CreateTestUser("test@test.com", "Test User");
-        var request = new LoginRequest("test@test.com");
-        var expectedToken = "test.jwt.token";
-        _jwtMock.Setup(x => x.GenerateToken(It.IsAny<User>()))
-            .Returns(expectedToken);
-
-        // Act
-        var result = await _service.LoginUserAsync(request);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(expectedToken, result.Token);
-        Assert.NotNull(result.User);
-        Assert.Equal(user.Id, result.User.Id);
-        Assert.Equal(user.Email, result.User.Email);
-        Assert.Equal(user.DisplayName, result.User.DisplayName);
-    }
-
-    [Fact]
-    public async Task LoginUserAsync_WithInvalidEmail_ShouldThrowException()
-    {
-        // Arrange
-        var request = new LoginRequest("nonexistent@test.com");
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.LoginUserAsync(request));
-        Assert.Equal("Invalid credentials", exception.Message);
+        _context.Database.EnsureDeleted();
+        _context.Dispose();
     }
 
     #region Helper Methods
@@ -312,12 +303,6 @@ public class UserServiceTests : IDisposable
         summary.ActionItems.Add(actionItem);
         await _context.SaveChangesAsync();
         return actionItem;
-    }
-
-    public void Dispose()
-    {
-        _context.Database.EnsureDeleted();
-        _context.Dispose();
     }
     #endregion
 }
