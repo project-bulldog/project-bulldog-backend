@@ -180,6 +180,7 @@ app.MapGet("/server-time", () => Results.Ok(DateTime.UtcNow));
 app.UseExceptionHandler("/error");
 
 //Security Middleware
+app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
 app.UseRateLimiter();
 app.UseAuthentication();
