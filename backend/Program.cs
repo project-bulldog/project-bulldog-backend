@@ -85,10 +85,11 @@ builder.Services.AddAuthentication("Bearer")
     });
 builder.Services.AddAuthorization();
 builder.Services.AddDataProtection();
+builder.Services.AddHttpContextAccessor();
 
 //Application Services
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<ITokenCleanupService, TokenCleanupService>();
 builder.Services.AddScoped<IActionItemService, ActionItemService>();
 builder.Services.AddScoped<IReminderService, ReminderService>();
 builder.Services.AddScoped<ISummaryService, SummaryService>();
@@ -96,6 +97,9 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
 builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
+
+//Background Services
+builder.Services.AddHostedService<TokenCleanupHostedService>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
@@ -127,7 +131,6 @@ builder.Services.AddRateLimiter(options =>
 });
 
 
-
 var app = builder.Build();
 
 //Health Checks
@@ -155,9 +158,8 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 
 //Test logging
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-
-
 app.MapGet("/server-time", () => Results.Ok(DateTime.UtcNow));
+
 
 //Exception Handling
 app.UseExceptionHandler("/error");
