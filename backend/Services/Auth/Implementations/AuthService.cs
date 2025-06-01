@@ -49,7 +49,7 @@ public class AuthService : IAuthService
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.Lax,
             Expires = refreshToken.ExpiresAt
         });
 
