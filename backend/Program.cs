@@ -130,6 +130,21 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = 429; // HTTP 429 Too Many Requests
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins(
+            "https://project-bulldog-frontend-git-qa-calatheazs-projects.vercel.app/", // qa
+            "https://project-bulldog-frontend-git-uat-calatheazs-projects.vercel.app/", // uat
+            "https://project-bulldog-frontend-git-main-calatheazs-projects.vercel.app/" // main
+        )
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials();
+    });
+});
+
 
 var app = builder.Build();
 
