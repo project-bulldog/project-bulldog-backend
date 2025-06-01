@@ -171,7 +171,7 @@ public class TokenServiceTests : IDisposable
             It.Is<CookieOptions>(o =>
                 o.HttpOnly &&
                 o.Secure &&
-                o.SameSite == SameSiteMode.Strict &&
+                o.SameSite == SameSiteMode.None &&
                 o.Expires == newToken.ExpiresAt
             )
         ), Times.Once);

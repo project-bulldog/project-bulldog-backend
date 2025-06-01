@@ -181,13 +181,20 @@ public class TokenService : ITokenService
 
     private static void SetRefreshTokenCookie(HttpResponse response, RefreshToken token)
     {
-        response.Cookies.Append("refreshToken", token.EncryptedToken, new CookieOptions
+        var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None,
+            Path = "/",
             Expires = token.ExpiresAt
-        });
+        };
+
+        // ✅ First delete the existing cookie (prevents duplicates)
+        response.Cookies.Delete("refreshToken", cookieOptions);
+
+        // ✅ Then set the new one
+        response.Cookies.Append("refreshToken", token.EncryptedToken, cookieOptions);
     }
     #endregion
 }
