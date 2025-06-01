@@ -3,6 +3,7 @@ using System.Text;
 using backend.Data;
 using backend.Models.Auth;
 using backend.Services.Auth.Interfaces;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -16,14 +17,16 @@ public class TokenService : ITokenService
     private readonly BulldogDbContext _context;
     private readonly IJwtService _jwtService;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly INotificationService _notificationService;
 
-    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, IHttpContextAccessor httpContextAccessor)
+    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, IHttpContextAccessor httpContextAccessor, INotificationService notificationService)
     {
         _protector = provider.CreateProtector("TokenService.RefreshToken");
         _logger = logger;
         _context = context;
         _jwtService = jwtService;
         _httpContextAccessor = httpContextAccessor;
+        _notificationService = notificationService;
     }
 
     public (string EncryptedToken, string HashedToken, string RawToken) GenerateRefreshToken()
@@ -32,12 +35,6 @@ public class TokenService : ITokenService
         var encrypted = _protector.Protect(rawToken);
         var hashed = ComputeSha256(rawToken);
         return (encrypted, hashed, rawToken);
-    }
-
-    public string ComputeSha256(string token)
-    {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToBase64String(bytes);
     }
 
     public string DecryptToken(string encryptedToken)
@@ -72,6 +69,34 @@ public class TokenService : ITokenService
 
     public async Task<(string NewAccessToken, string NewEncryptedRefreshToken)> ValidateAndRotateRefreshTokenAsync(string encryptedToken, HttpResponse response, string? ipAddress = null, string? userAgent = null)
     {
+        var rawToken = await DecryptAndValidateTokenAsync(encryptedToken);
+        var hashedToken = ComputeSha256(rawToken);
+        var existingToken = await ValidateExistingTokenAsync(hashedToken);
+
+        await ValidateTokenStatusAsync(existingToken);
+
+        // Revoke the used token (rotation)
+        existingToken.IsRevoked = true;
+        existingToken.RevokedAt = DateTime.UtcNow;
+        existingToken.RevokedReason = "Token rotated";
+
+        var newRefreshToken = await CreateNewRefreshTokenAsync(existingToken, ipAddress, userAgent);
+        SetRefreshTokenCookie(response, newRefreshToken);
+
+        // Create new access token
+        var accessToken = _jwtService.GenerateToken(existingToken.User);
+
+        return (accessToken, newRefreshToken.EncryptedToken);
+    }
+
+    #region Private Methods
+    private static string ComputeSha256(string token)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        return Convert.ToBase64String(bytes);
+    }
+    private async Task<string> DecryptAndValidateTokenAsync(string encryptedToken)
+    {
         string rawToken;
 
         try
@@ -81,11 +106,17 @@ public class TokenService : ITokenService
         catch
         {
             _logger.LogWarning("Decryption failed — token may be tampered.");
+            await _notificationService.SendSecurityAlertAsync(
+                "Security Alert: Token Decryption Failed",
+                $"Failed to decrypt refresh token at {DateTime.UtcNow}. Possible tampering detected."
+            );
             throw new SecurityTokenException("Refresh token is invalid or tampered.");
         }
+        return rawToken;
+    }
 
-        var hashedToken = ComputeSha256(rawToken);
-
+    private async Task<RefreshToken> ValidateExistingTokenAsync(string hashedToken)
+    {
         var existingToken = await _context.RefreshTokens
             .Include(t => t.User)
             .FirstOrDefaultAsync(t => t.HashedToken == hashedToken);
@@ -93,36 +124,44 @@ public class TokenService : ITokenService
         if (existingToken == null)
         {
             _logger.LogWarning("Refresh token not found in database — possible forgery.");
+            await _notificationService.SendSecurityAlertAsync(
+                "Security Alert: Unknown Refresh Token Used",
+                $"Unknown refresh token attempted at {DateTime.UtcNow}. Could indicate forgery."
+            );
             throw new SecurityTokenException("Refresh token is invalid.");
         }
 
-        if (existingToken.IsRevoked)
-        {
-            _logger.LogWarning("Refresh token reuse detected for user {UserId}", existingToken.UserId);
+        return existingToken;
+    }
 
-            await RevokeAllUserTokensAsync(existingToken.UserId, "Refresh token reuse detected");
+    private async Task ValidateTokenStatusAsync(RefreshToken token)
+    {
+        if (token.IsRevoked)
+        {
+            _logger.LogWarning("Refresh token reuse detected for user {UserId}", token.UserId);
+            await _notificationService.SendSecurityAlertAsync(
+                "Security Alert: Refresh Token Reuse Detected",
+                $"Refresh token reuse detected for user ID: {token.UserId} at {DateTime.UtcNow}. All sessions revoked."
+            );
+            await RevokeAllUserTokensAsync(token.UserId, "Refresh token reuse detected");
             throw new SecurityTokenException("Refresh token reuse detected. All sessions revoked.");
         }
 
-        if (existingToken.ExpiresAt < DateTime.UtcNow)
+        if (token.ExpiresAt < DateTime.UtcNow)
         {
-            existingToken.IsRevoked = true;
-            existingToken.RevokedAt = DateTime.UtcNow;
-            existingToken.RevokedReason = "Expired";
-
+            token.IsRevoked = true;
+            token.RevokedAt = DateTime.UtcNow;
+            token.RevokedReason = "Expired";
             await _context.SaveChangesAsync();
 
-            _logger.LogWarning("Refresh token expired for user {UserId}", existingToken.UserId);
+            _logger.LogWarning("Refresh token expired for user {UserId}", token.UserId);
             throw new SecurityTokenException("Refresh token has expired.");
         }
+    }
 
-        // Revoke the used token (rotation)
-        existingToken.IsRevoked = true;
-        existingToken.RevokedAt = DateTime.UtcNow;
-        existingToken.RevokedReason = "Token rotated";
-
-        // Generate a new refresh token
-        var (newEncrypted, newHashed, newRaw) = GenerateRefreshToken();
+    private async Task<RefreshToken> CreateNewRefreshTokenAsync(RefreshToken existingToken, string? ipAddress, string? userAgent)
+    {
+        var (newEncrypted, newHashed, _) = GenerateRefreshToken();
 
         var newRefreshToken = new RefreshToken
         {
@@ -137,19 +176,18 @@ public class TokenService : ITokenService
         _context.RefreshTokens.Add(newRefreshToken);
         await _context.SaveChangesAsync();
 
-        // Set new cookie
-        response.Cookies.Append("refreshToken", newEncrypted, new CookieOptions
+        return newRefreshToken;
+    }
+
+    private static void SetRefreshTokenCookie(HttpResponse response, RefreshToken token)
+    {
+        response.Cookies.Append("refreshToken", token.EncryptedToken, new CookieOptions
         {
             HttpOnly = true,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Expires = newRefreshToken.ExpiresAt
+            Expires = token.ExpiresAt
         });
-
-        // Create new access token
-        var accessToken = _jwtService.GenerateToken(existingToken.User);
-
-        return (accessToken, newEncrypted);
     }
-
+    #endregion
 }
