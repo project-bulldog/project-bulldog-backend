@@ -1,4 +1,5 @@
 using backend.Models;
+using backend.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Data
@@ -14,6 +15,7 @@ namespace backend.Data
         public DbSet<Summary> Summaries { get; set; }
         public DbSet<ActionItem> ActionItems { get; set; }
         public DbSet<Reminder> Reminders { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -83,6 +85,32 @@ namespace backend.Data
                 entity.HasOne(ai => ai.Summary)
                       .WithMany(s => s.ActionItems)
                       .HasForeignKey(ai => ai.SummaryId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(rt => rt.Id);
+
+                entity.HasIndex(rt => rt.HashedToken).IsUnique(); // Secure lookup
+
+                entity.Property(rt => rt.EncryptedToken)
+                      .IsRequired()
+                      .HasMaxLength(512);
+
+                entity.Property(rt => rt.HashedToken)
+                      .IsRequired()
+                      .HasMaxLength(128); // SHA-256 output base64 = 44 chars
+
+                entity.Property(rt => rt.ExpiresAt)
+                      .IsRequired();
+
+                entity.Property(rt => rt.IsRevoked)
+                      .HasDefaultValue(false);
+
+                entity.HasOne(rt => rt.User)
+                      .WithMany(u => u.RefreshTokens)
+                      .HasForeignKey(rt => rt.UserId)
                       .OnDelete(DeleteBehavior.Cascade);
             });
         }

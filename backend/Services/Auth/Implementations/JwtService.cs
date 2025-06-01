@@ -2,9 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using backend.Models;
+using backend.Services.Auth.Interfaces;
 using Microsoft.IdentityModel.Tokens;
 
-namespace backend.Services.Auth;
+namespace backend.Services.Auth.Implementations;
 
 public class JwtService : IJwtService
 {
@@ -14,7 +15,7 @@ public class JwtService : IJwtService
     public JwtService(IConfiguration config)
     {
         _jwtSecret = config["Jwt:Secret"] ?? throw new InvalidOperationException("Missing JWT Secret");
-        _jwtLifespanMinutes = int.Parse(config["Jwt:LifespanMinutes"] ?? "60");
+        _jwtLifespanMinutes = int.Parse(config["Jwt:LifespanMinutes"] ?? "15");
     }
 
     public string GenerateToken(User user)

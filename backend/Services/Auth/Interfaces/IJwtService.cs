@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using backend.Models;
 
-namespace backend.Services.Auth;
+namespace backend.Services.Auth.Interfaces;
 
 public interface IJwtService
 {

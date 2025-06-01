@@ -5,7 +5,6 @@ using backend.Dtos.Summaries;
 using backend.Dtos.Users;
 using backend.Helpers;
 using backend.Models;
-using backend.Services.Auth;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,13 +14,11 @@ namespace backend.Services.Implementations
     {
         private readonly BulldogDbContext _context;
         private readonly ILogger<UserService> _logger;
-        private readonly IJwtService _jwt;
 
-        public UserService(BulldogDbContext context, ILogger<UserService> logger, IJwtService jwt)
+        public UserService(BulldogDbContext context, ILogger<UserService> logger)
         {
             _context = context;
             _logger = logger;
-            _jwt = jwt;
         }
 
         public async Task<IEnumerable<UserDto>> GetUsersAsync()
@@ -107,12 +104,11 @@ namespace backend.Services.Implementations
             };
         }
 
-        public async Task<AuthResponse> RegisterUserAsync(CreateUserDto dto)
+        public async Task<User> RegisterUserAsync(CreateUserDto dto)
         {
             if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
             {
                 _logger.LogWarning("Registration failed: Email {Email} already registered", LogSanitizer.SanitizeForLog(dto.Email));
-
                 throw new InvalidOperationException("Email already registered.");
             }
 
@@ -127,17 +123,10 @@ namespace backend.Services.Implementations
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("User registered successfully with id {Id}", user.Id);
-
-            var token = _jwt.GenerateToken(user);
-            return new AuthResponse(token, new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                DisplayName = user.DisplayName
-            });
+            return user;
         }
 
-        public async Task<AuthResponse> LoginUserAsync(LoginRequest request)
+        public async Task<User> ValidateUserAsync(LoginRequest request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
@@ -146,15 +135,8 @@ namespace backend.Services.Implementations
                 throw new InvalidOperationException("Invalid credentials");
             }
 
-            var token = _jwt.GenerateToken(user);
-            _logger.LogInformation("User {Id} logged in successfully", user.Id);
-
-            return new AuthResponse(token, new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                DisplayName = user.DisplayName
-            });
+            _logger.LogInformation("User {Id} authenticated successfully", user.Id);
+            return user;
         }
 
         public async Task<bool> UpdateUserAsync(Guid id, UpdateUserDto updateDto)

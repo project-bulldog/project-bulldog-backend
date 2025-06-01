@@ -66,16 +66,23 @@ public class ReminderProcessor : IReminderProcessor
     #region Private Methods
     private void TrackReminderProcessed(Models.Reminder reminder)
     {
-        _telemetryClient.TrackEvent("ReminderProcessed", new Dictionary<string, string>
-                {
-                    { "UserId", reminder.UserId.ToString() },
-                    { "ReminderId", reminder.Id.ToString() },
-                    { "Status", " ✅ Success" },
-                    { "Timestamp", reminder.SentAt.Value.ToString("o") }
-                });
+        if (reminder.SentAt.HasValue)
+        {
+            _telemetryClient.TrackEvent("ReminderProcessed", new Dictionary<string, string>
+                    {
+                        { "UserId", reminder.UserId.ToString() },
+                        { "ReminderId", reminder.Id.ToString() },
+                        { "Status", " ✅ Success" },
+                        { "Timestamp", reminder.SentAt.Value.ToString("o") }
+                    });
 
-        _telemetryClient.GetMetric("RemindersSentPerDay", "UserId")
-                .TrackValue(1, reminder.UserId.ToString());
+            _telemetryClient.GetMetric("RemindersSentPerDay", "UserId")
+                    .TrackValue(1, reminder.UserId.ToString());
+        }
+        else
+        {
+            _logger.LogWarning("Attempted to track reminder {ReminderId} with no SentAt value", reminder.Id);
+        }
     }
     #endregion
 }
