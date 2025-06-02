@@ -116,8 +116,6 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> LogoutUser()
     {
-        _logger.LogInformation("🔍 Incoming Cookies: {CookieHeader}", Request.Headers["Cookie"].ToString());
-
         var userId = User.GetUserId();
         if (userId == Guid.Empty)
             return Unauthorized();
