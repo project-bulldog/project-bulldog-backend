@@ -65,10 +65,17 @@ public class AuthController : ControllerBase
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken()
     {
+        var rawCookieHeader = Request.Headers.Cookie.ToString();
+        _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
+
         var encryptedToken = Request.Cookies["refreshToken"];
+        _logger.LogInformation("🔐 Parsed refreshToken: {RefreshToken}", encryptedToken ?? "null");
 
         if (string.IsNullOrEmpty(encryptedToken))
+        {
+            _logger.LogWarning("❌ No refreshToken received — likely blocked by browser or missing.");
             return Unauthorized("Missing refresh token");
+        }
 
         try
         {
@@ -78,13 +85,17 @@ public class AuthController : ControllerBase
             var (accessToken, _) = await _tokenService.ValidateAndRotateRefreshTokenAsync(
                 encryptedToken, Response, ip, agent);
 
+            _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
             return Ok(new { accessToken });
         }
         catch (SecurityTokenException ex)
         {
+            _logger.LogWarning("❌ Token validation failed: {Error}", ex.Message);
             return Unauthorized(ex.Message);
         }
     }
+
+
 
     [Authorize]
     [HttpPost("logout-all")]
