@@ -1,6 +1,7 @@
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
 using backend.Extensions;
+using backend.Helpers;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Backend.Dtos.Auth;
@@ -61,16 +62,26 @@ public class AuthController : ControllerBase
         }
     }
 
+
     [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshRequestDto? request = null)
     {
-        var rawCookieHeader = Request.Headers.Cookie.ToString();
+#if DEBUG
+        var rawCookieHeader = LogSanitizer.SanitizeForLog(Request.Headers.Cookie.ToString());
         _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
+#endif
 
         // Use body token if present (iOS Safari fallback), else fallback to cookie
         var encryptedToken = request?.Token ?? Request.Cookies["refreshToken"];
-        _logger.LogInformation("🔐 Parsed refreshToken: {RefreshToken}", encryptedToken ?? "null");
+
+#if DEBUG
+        var tokenPreview = LogSanitizer.GetSafeTokenPreview(encryptedToken);
+        _logger.LogInformation("🔐 Parsed refreshToken ends in: {Preview}", tokenPreview);
+#else
+        _logger.LogDebug("🔐 refreshToken received: {TokenPresent}",
+        LogSanitizer.FormatPresence(!string.IsNullOrWhiteSpace(encryptedToken)));
+#endif
 
         if (string.IsNullOrEmpty(encryptedToken))
         {
@@ -87,10 +98,11 @@ public class AuthController : ControllerBase
                 encryptedToken, Response, ip, agent);
 
             _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
+
             return Ok(new
             {
                 accessToken,
-                refreshToken = rotatedRefreshToken// ✅ include in response for iOS
+                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS Safari support
             });
         }
         catch (SecurityTokenException ex)
