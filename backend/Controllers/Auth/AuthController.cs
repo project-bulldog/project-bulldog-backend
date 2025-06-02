@@ -84,11 +84,15 @@ public class AuthController : ControllerBase
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             var agent = Request.Headers.UserAgent.ToString();
 
-            var (accessToken, _) = await _tokenService.ValidateAndRotateRefreshTokenAsync(
+            var (accessToken, rotatedRefreshToken) = await _tokenService.ValidateAndRotateRefreshTokenAsync(
                 encryptedToken, Response, ip, agent);
 
             _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
-            return Ok(new { accessToken });
+            return Ok(new
+            {
+                accessToken,
+                refreshToken = rotatedRefreshToken// ✅ include in response for iOS
+            });
         }
         catch (SecurityTokenException ex)
         {
