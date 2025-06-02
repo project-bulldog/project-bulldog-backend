@@ -63,12 +63,13 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken()
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshRequest? request = null)
     {
         var rawCookieHeader = Request.Headers.Cookie.ToString();
         _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
 
-        var encryptedToken = Request.Cookies["refreshToken"];
+        // Use body token if present (iOS Safari fallback), else fallback to cookie
+        var encryptedToken = request?.Token ?? Request.Cookies["refreshToken"];
         _logger.LogInformation("🔐 Parsed refreshToken: {RefreshToken}", encryptedToken ?? "null");
 
         if (string.IsNullOrEmpty(encryptedToken))
@@ -104,5 +105,10 @@ public class AuthController : ControllerBase
         var userId = User.GetUserId();
         await _authService.LogoutAllSessionsAsync(userId, Response);
         return Ok(new { message = "Logged out of all sessions" });
+    }
+
+    public class RefreshRequest
+    {
+        public string? Token { get; set; }
     }
 }
