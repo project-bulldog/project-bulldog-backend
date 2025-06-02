@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using backend.Data;
+using backend.Dtos.Auth;
 using backend.Models.Auth;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
@@ -16,16 +17,14 @@ public class TokenService : ITokenService
     private readonly ILogger<TokenService> _logger;
     private readonly BulldogDbContext _context;
     private readonly IJwtService _jwtService;
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly INotificationService _notificationService;
 
-    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, IHttpContextAccessor httpContextAccessor, INotificationService notificationService)
+    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, INotificationService notificationService)
     {
         _protector = provider.CreateProtector("TokenService.RefreshToken");
         _logger = logger;
         _context = context;
         _jwtService = jwtService;
-        _httpContextAccessor = httpContextAccessor;
         _notificationService = notificationService;
     }
 
@@ -49,6 +48,31 @@ public class TokenService : ITokenService
 
             throw new InvalidOperationException("Invalid token or token has been tampered with.", ex);
         }
+    }
+
+    public async Task<SessionMetadataDto?> RevokeTokenAsync(string encryptedRefreshToken, Guid userId)
+    {
+        var rawToken = await DecryptAndValidateTokenAsync(encryptedRefreshToken);
+        var hashedToken = ComputeSha256(rawToken);
+
+        var token = await _context.RefreshTokens
+            .FirstOrDefaultAsync(t => t.UserId == userId && t.HashedToken == hashedToken && !t.IsRevoked);
+
+        if (token == null)
+            return null;
+
+        token.IsRevoked = true;
+        token.RevokedAt = DateTime.UtcNow;
+        token.RevokedReason = "User logout";
+
+        await _context.SaveChangesAsync();
+
+        return new SessionMetadataDto
+        {
+            TokenId = token.Id,
+            Ip = token.CreatedByIp,
+            UserAgent = token.UserAgent
+        };
     }
 
     public async Task RevokeAllUserTokensAsync(Guid userId, string reason)
@@ -88,6 +112,7 @@ public class TokenService : ITokenService
 
         return (accessToken, newRefreshToken.EncryptedToken);
     }
+
 
     #region Private Methods
     private static string ComputeSha256(string token)

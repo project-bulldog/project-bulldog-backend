@@ -1,6 +1,6 @@
 namespace Backend.Dtos.Auth;
 
-public class RefreshRequest
+public class RefreshRequestDto
 {
     public string? Token { get; set; }
 }

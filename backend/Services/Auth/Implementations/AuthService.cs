@@ -1,10 +1,12 @@
 using backend.Data;
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
+using backend.Helpers;
 using backend.Models;
 using backend.Models.Auth;
 using backend.Services.Auth.Interfaces;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Auth.Implementations;
 
@@ -25,7 +27,7 @@ public class AuthService : IAuthService
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public async Task<AuthResponse> LoginAsync(User user, HttpResponse httpResponse)
+    public async Task<AuthResponseDto> LoginAsync(User user, HttpResponse httpResponse)
     {
         var accessToken = _jwtService.GenerateToken(user);
         var (encrypted, hashed, _) = _tokenService.GenerateRefreshToken();
@@ -61,7 +63,7 @@ public class AuthService : IAuthService
         // Only return token in body if iOS
         var refreshTokenForClient = isIOS ? encrypted : null;
 
-        return new AuthResponse(
+        return new AuthResponseDto(
             accessToken,
             refreshTokenForClient, //Refresh token the frontend needs for iOS fallback
             new UserDto
@@ -76,16 +78,19 @@ public class AuthService : IAuthService
     public async Task LogoutAllSessionsAsync(Guid userId, HttpResponse response)
     {
         await _tokenService.RevokeAllUserTokensAsync(userId, "Manual logout");
-
-        response.Cookies.Append("refreshToken", "", new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Expires = DateTime.UtcNow.AddDays(-1)
-        });
+        CookieHelper.ClearRefreshToken(response);
 
         _logger.LogInformation("User {UserId} logged out of all sessions", userId);
     }
 
+    public async Task<SessionMetadataDto?> LogoutAsync(Guid userId, string encryptedRefreshToken, HttpResponse response)
+    {
+        var sessionInfo = await _tokenService.RevokeTokenAsync(encryptedRefreshToken, userId);
+
+        CookieHelper.ClearRefreshToken(response);
+
+        _logger.LogInformation("User {UserId} logged out of one session from IP {Ip} with UA {UA}", userId, sessionInfo?.Ip, sessionInfo?.UserAgent);
+
+        return sessionInfo;
+    }
 }

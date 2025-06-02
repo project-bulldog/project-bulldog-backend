@@ -126,7 +126,7 @@ namespace backend.Services.Implementations
             return user;
         }
 
-        public async Task<User> ValidateUserAsync(LoginRequest request)
+        public async Task<User> ValidateUserAsync(LoginRequestDto request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)

@@ -168,7 +168,7 @@ public class UserServiceTests : IDisposable
     {
         // Arrange
         var user = await CreateTestUser("test@test.com", "Test User");
-        var request = new LoginRequest("test@test.com");
+        var request = new LoginRequestDto("test@test.com");
 
         // Act
         var result = await _service.ValidateUserAsync(request);
@@ -184,7 +184,7 @@ public class UserServiceTests : IDisposable
     public async Task ValidateUserAsync_WithInvalidEmail_ShouldThrowException()
     {
         // Arrange
-        var request = new LoginRequest("nonexistent@test.com");
+        var request = new LoginRequestDto("nonexistent@test.com");
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(

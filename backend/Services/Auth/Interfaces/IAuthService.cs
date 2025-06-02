@@ -5,7 +5,7 @@ namespace backend.Services.Auth.Interfaces;
 
 public interface IAuthService
 {
-    Task<AuthResponse> LoginAsync(User user, HttpResponse httpResponse);
+    Task<AuthResponseDto> LoginAsync(User user, HttpResponse httpResponse);
     Task LogoutAllSessionsAsync(Guid userId, HttpResponse response);
-
+    Task<SessionMetadataDto?> LogoutAsync(Guid userId, string encryptedRefreshToken, HttpResponse response);
 }
