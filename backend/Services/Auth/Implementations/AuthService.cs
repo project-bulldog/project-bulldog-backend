@@ -1,12 +1,9 @@
 using backend.Data;
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
-using backend.Helpers;
 using backend.Models;
 using backend.Models.Auth;
 using backend.Services.Auth.Interfaces;
-using Microsoft.AspNetCore.Http;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Auth.Implementations;
 
@@ -14,14 +11,16 @@ public class AuthService : IAuthService
 {
     private readonly IJwtService _jwtService;
     private readonly ITokenService _tokenService;
+    private readonly ICookieService _cookieService;
     private readonly BulldogDbContext _context;
     private readonly ILogger<AuthService> _logger;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public AuthService(IJwtService jwtService, ITokenService tokenService, BulldogDbContext context, ILogger<AuthService> logger, IHttpContextAccessor httpContextAccessor)
+    public AuthService(IJwtService jwtService, ITokenService tokenService, ICookieService cookieService, BulldogDbContext context, ILogger<AuthService> logger, IHttpContextAccessor httpContextAccessor)
     {
         _jwtService = jwtService;
         _tokenService = tokenService;
+        _cookieService = cookieService;
         _context = context;
         _logger = logger;
         _httpContextAccessor = httpContextAccessor;
@@ -49,14 +48,9 @@ public class AuthService : IAuthService
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync();
 
-        httpResponse.Cookies.Append("refreshToken", encrypted, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None, // only way to get the refresh token to work because of the CORS policy
-            Path = "/",
-            Expires = refreshToken.ExpiresAt
-        });
+        _cookieService.SetRefreshToken(httpResponse, refreshToken);
+        _logger.LogInformation("Set refreshToken cookie: {Value}", refreshToken.EncryptedToken);
+
 
         _logger.LogInformation("User {Id} logged in and tokens issued.", user.Id);
 
@@ -78,7 +72,8 @@ public class AuthService : IAuthService
     public async Task LogoutAllSessionsAsync(Guid userId, HttpResponse response)
     {
         await _tokenService.RevokeAllUserTokensAsync(userId, "Manual logout");
-        CookieHelper.ClearRefreshToken(response);
+
+        _cookieService.ClearRefreshToken(response);
 
         _logger.LogInformation("User {UserId} logged out of all sessions", userId);
     }
@@ -87,7 +82,7 @@ public class AuthService : IAuthService
     {
         var sessionInfo = await _tokenService.RevokeTokenAsync(encryptedRefreshToken, userId);
 
-        CookieHelper.ClearRefreshToken(response);
+        _cookieService.ClearRefreshToken(response);
 
         _logger.LogInformation("User {UserId} logged out of one session from IP {Ip} with UA {UA}", userId, sessionInfo?.Ip, sessionInfo?.UserAgent);
 

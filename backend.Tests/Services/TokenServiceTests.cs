@@ -1,8 +1,8 @@
-using System.Security.Cryptography;
 using System.Text;
 using backend.Data;
 using backend.Models;
 using backend.Models.Auth;
+using backend.Services.Auth;
 using backend.Services.Auth.Implementations;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
@@ -23,6 +23,7 @@ public class TokenServiceTests : IDisposable
     private readonly Mock<IJwtService> _mockJwtService;
     private readonly TokenService _tokenService;
     private readonly Mock<INotificationService> _mockNotificationService;
+    private readonly Mock<ICookieService> _mockCookieService;
 
     public TokenServiceTests()
     {
@@ -30,6 +31,7 @@ public class TokenServiceTests : IDisposable
         _mockLogger = new Mock<ILogger<TokenService>>();
         _mockJwtService = new Mock<IJwtService>();
         _mockNotificationService = new Mock<INotificationService>();
+        _mockCookieService = new Mock<ICookieService>();
         var options = new DbContextOptionsBuilder<BulldogDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
@@ -40,7 +42,8 @@ public class TokenServiceTests : IDisposable
             _mockLogger.Object,
             _context,
             _mockJwtService.Object,
-            _mockNotificationService.Object
+            _mockNotificationService.Object,
+            _mockCookieService.Object
         );
     }
 
@@ -130,8 +133,6 @@ public class TokenServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         var response = new Mock<HttpResponse>();
-        var cookies = new Mock<IResponseCookies>();
-        response.Setup(r => r.Cookies).Returns(cookies.Object);
 
         _mockJwtService.Setup(x => x.GenerateToken(It.IsAny<User>()))
             .Returns("new-access-token");
@@ -162,15 +163,9 @@ public class TokenServiceTests : IDisposable
         Assert.Equal("127.0.0.1", newToken.CreatedByIp);
         Assert.Equal("TestBrowser", newToken.UserAgent);
 
-        cookies.Verify(c => c.Append(
-            "refreshToken",
-            newEncryptedToken,
-            It.Is<CookieOptions>(o =>
-                o.HttpOnly &&
-                o.Secure &&
-                o.SameSite == SameSiteMode.None &&
-                o.Expires == newToken.ExpiresAt
-            )
+        _mockCookieService.Verify(c => c.SetRefreshToken(
+            response.Object,
+            It.Is<RefreshToken>(t => t.EncryptedToken == newEncryptedToken)
         ), Times.Once);
     }
 
@@ -364,8 +359,6 @@ public class TokenServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         var response = new Mock<HttpResponse>();
-        var cookies = new Mock<IResponseCookies>();
-        response.Setup(r => r.Cookies).Returns(cookies.Object);
 
         _mockJwtService.Setup(x => x.GenerateToken(It.IsAny<User>()))
             .Returns("new-access-token");
@@ -460,8 +453,6 @@ public class TokenServiceTests : IDisposable
         await _context.SaveChangesAsync();
 
         var response = new Mock<HttpResponse>();
-        var cookies = new Mock<IResponseCookies>();
-        response.Setup(r => r.Cookies).Returns(cookies.Object);
 
         _mockJwtService.Setup(x => x.GenerateToken(It.IsAny<User>()))
             .Returns("new-access-token");
@@ -475,13 +466,9 @@ public class TokenServiceTests : IDisposable
         );
 
         // Assert
-        cookies.Verify(c => c.Delete(
-            "refreshToken",
-            It.Is<CookieOptions>(o =>
-                o.HttpOnly &&
-                o.Secure &&
-                o.SameSite == SameSiteMode.None
-            )
+        _mockCookieService.Verify(c => c.SetRefreshToken(
+            response.Object,
+            It.Is<RefreshToken>(t => t.EncryptedToken != encryptedToken)
         ), Times.Once);
     }
 

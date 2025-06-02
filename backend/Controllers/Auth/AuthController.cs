@@ -102,7 +102,7 @@ public class AuthController : ControllerBase
             return Ok(new
             {
                 accessToken,
-                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS Safari support
+                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS browser support
             });
         }
         catch (SecurityTokenException ex)

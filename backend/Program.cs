@@ -4,6 +4,7 @@ using System.Threading.RateLimiting;
 using backend.Data;
 using backend.HealthChecks;
 using backend.Infrastructure;
+using backend.Services.Auth;
 using backend.Services.Auth.Implementations;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
@@ -86,6 +87,7 @@ builder.Services.AddAuthentication("Bearer")
 builder.Services.AddAuthorization();
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<ICookieService, CookieService>();
 
 //Application Services
 builder.Services.AddScoped<ITokenService, TokenService>();

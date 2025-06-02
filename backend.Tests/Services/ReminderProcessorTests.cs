@@ -29,7 +29,7 @@ public class ReminderProcessorTests : IDisposable
 
         var config = new TelemetryConfiguration
         {
-            InstrumentationKey = "00000000-0000-0000-0000-000000000000",
+            ConnectionString = "InstrumentationKey=00000000-0000-0000-0000-000000000000",
             TelemetryChannel = new InMemoryChannel { DeveloperMode = true }
         };
         _telemetryClient = new TelemetryClient(config);
@@ -80,8 +80,10 @@ public class ReminderProcessorTests : IDisposable
 
         // Assert
         var updatedReminders = await _context.Reminders.ToListAsync();
-        Assert.True(updatedReminders.Single(r => r.Id == reminder1.Id).IsSent);
-        Assert.False(updatedReminders.Single(r => r.Id == reminder2.Id).IsSent);
+        var updatedReminder1 = updatedReminders.Single(r => r.Id == reminder1.Id);
+        var updatedReminder2 = updatedReminders.Single(r => r.Id == reminder2.Id);
+        Assert.True(updatedReminder1.IsSent);
+        Assert.False(updatedReminder2.IsSent);
     }
 
     [Fact]
@@ -116,6 +118,7 @@ public class ReminderProcessorTests : IDisposable
 
         // Assert
         var updated = await _context.Reminders.FindAsync(reminder.Id);
+        Assert.NotNull(updated);
         Assert.True(updated.IsSent);
         Assert.NotNull(updated.SentAt);
         Assert.Equal(0, updated.SendAttempts);
@@ -153,6 +156,7 @@ public class ReminderProcessorTests : IDisposable
 
         // Assert
         var updated = await _context.Reminders.FindAsync(reminder.Id);
+        Assert.NotNull(updated);
         Assert.False(updated.IsSent);
         Assert.Null(updated.SentAt);
         Assert.Equal(1, updated.SendAttempts);

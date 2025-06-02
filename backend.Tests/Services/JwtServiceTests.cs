@@ -1,4 +1,3 @@
-
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using backend.Models;
@@ -16,7 +15,7 @@ public class JwtServiceTests
 
     public JwtServiceTests()
     {
-        var inMemorySettings = new Dictionary<string, string> {
+        var inMemorySettings = new Dictionary<string, string?> {
             { "Jwt:Secret", _jwtSecret },
             { "Jwt:LifespanMinutes", _jwtLifespanMinutes.ToString() }
         };

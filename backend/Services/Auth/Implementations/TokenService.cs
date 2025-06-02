@@ -18,14 +18,16 @@ public class TokenService : ITokenService
     private readonly BulldogDbContext _context;
     private readonly IJwtService _jwtService;
     private readonly INotificationService _notificationService;
+    private readonly ICookieService _cookieService;
 
-    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, INotificationService notificationService)
+    public TokenService(IDataProtectionProvider provider, ILogger<TokenService> logger, BulldogDbContext context, IJwtService jwtService, INotificationService notificationService, ICookieService cookieService)
     {
         _protector = provider.CreateProtector("TokenService.RefreshToken");
         _logger = logger;
         _context = context;
         _jwtService = jwtService;
         _notificationService = notificationService;
+        _cookieService = cookieService;
     }
 
     public (string EncryptedToken, string HashedToken, string RawToken) GenerateRefreshToken()
@@ -105,7 +107,7 @@ public class TokenService : ITokenService
         existingToken.RevokedReason = "Token rotated";
 
         var newRefreshToken = await CreateNewRefreshTokenAsync(existingToken, ipAddress, userAgent);
-        SetRefreshTokenCookie(response, newRefreshToken);
+        _cookieService.SetRefreshToken(response, newRefreshToken);
 
         // Create new access token
         var accessToken = _jwtService.GenerateToken(existingToken.User);
@@ -202,24 +204,6 @@ public class TokenService : ITokenService
         await _context.SaveChangesAsync();
 
         return newRefreshToken;
-    }
-
-    private static void SetRefreshTokenCookie(HttpResponse response, RefreshToken token)
-    {
-        var cookieOptions = new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None,
-            Path = "/",
-            Expires = token.ExpiresAt
-        };
-
-        // ✅ First delete the existing cookie (prevents duplicates)
-        response.Cookies.Delete("refreshToken", cookieOptions);
-
-        // ✅ Then set the new one
-        response.Cookies.Append("refreshToken", token.EncryptedToken, cookieOptions);
     }
     #endregion
 }
