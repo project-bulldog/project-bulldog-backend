@@ -21,7 +21,6 @@ public class TokenServiceTests : IDisposable
     private readonly Mock<ILogger<TokenService>> _mockLogger;
     private readonly BulldogDbContext _context;
     private readonly Mock<IJwtService> _mockJwtService;
-    private readonly Mock<IHttpContextAccessor> _mockHttpContextAccessor;
     private readonly TokenService _tokenService;
     private readonly Mock<INotificationService> _mockNotificationService;
 
@@ -30,7 +29,6 @@ public class TokenServiceTests : IDisposable
         _fakeProtector = new FakeProtector();
         _mockLogger = new Mock<ILogger<TokenService>>();
         _mockJwtService = new Mock<IJwtService>();
-        _mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
         _mockNotificationService = new Mock<INotificationService>();
         var options = new DbContextOptionsBuilder<BulldogDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
@@ -42,7 +40,6 @@ public class TokenServiceTests : IDisposable
             _mockLogger.Object,
             _context,
             _mockJwtService.Object,
-            _mockHttpContextAccessor.Object,
             _mockNotificationService.Object
         );
     }
@@ -196,6 +193,64 @@ public class TokenServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ValidateAndRotateRefreshTokenAsync_WithRevokedToken_RevokesAllUserTokens()
+    {
+        // Arrange
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User" };
+        var (encryptedToken, hashedToken, _) = _tokenService.GenerateRefreshToken();
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            EncryptedToken = encryptedToken,
+            HashedToken = hashedToken,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            IsRevoked = true,
+            RevokedAt = DateTime.UtcNow.AddHours(-1),
+            RevokedReason = "Previous revocation"
+        };
+
+        // Add another active token for the same user
+        var (encryptedToken2, hashedToken2, _) = _tokenService.GenerateRefreshToken();
+        var refreshToken2 = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            EncryptedToken = encryptedToken2,
+            HashedToken = hashedToken2,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+
+        await _context.Users.AddAsync(user);
+        await _context.RefreshTokens.AddRangeAsync(refreshToken, refreshToken2);
+        await _context.SaveChangesAsync();
+
+        var response = new Mock<HttpResponse>();
+
+        // Act
+        await Assert.ThrowsAsync<SecurityTokenException>(() =>
+            _tokenService.ValidateAndRotateRefreshTokenAsync(encryptedToken, response.Object));
+
+        // Assert
+        var allTokens = await _context.RefreshTokens.Where(t => t.UserId == user.Id).ToListAsync();
+        Assert.All(allTokens, token => Assert.True(token.IsRevoked));
+        Assert.All(allTokens, token =>
+        {
+            if (token.Id == refreshToken.Id)
+            {
+                Assert.Equal("Previous revocation", token.RevokedReason);
+            }
+            else
+            {
+                Assert.Equal("Refresh token reuse detected", token.RevokedReason);
+            }
+        });
+    }
+
+    [Fact]
     public async Task ValidateAndRotateRefreshTokenAsync_WithRevokedToken_SendsSecurityAlert()
     {
         // Arrange
@@ -328,6 +383,106 @@ public class TokenServiceTests : IDisposable
             It.IsAny<string>(),
             It.IsAny<string>()
         ), Times.Never);
+    }
+
+    [Fact]
+    public async Task RevokeTokenAsync_WithValidToken_ReturnsSessionInfo()
+    {
+        // Arrange
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User" };
+        var (encryptedToken, hashedToken, _) = _tokenService.GenerateRefreshToken();
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            EncryptedToken = encryptedToken,
+            HashedToken = hashedToken,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false,
+            CreatedByIp = "127.0.0.1",
+            UserAgent = "TestBrowser"
+        };
+
+        await _context.Users.AddAsync(user);
+        await _context.RefreshTokens.AddAsync(refreshToken);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _tokenService.RevokeTokenAsync(encryptedToken, user.Id);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(refreshToken.Id, result.TokenId);
+        Assert.Equal("127.0.0.1", result.Ip);
+        Assert.Equal("TestBrowser", result.UserAgent);
+
+        var updatedToken = await _context.RefreshTokens.FindAsync(refreshToken.Id);
+        Assert.NotNull(updatedToken);
+        Assert.True(updatedToken!.IsRevoked);
+        Assert.Equal("User logout", updatedToken.RevokedReason);
+        Assert.NotNull(updatedToken.RevokedAt);
+    }
+
+    [Fact]
+    public async Task RevokeTokenAsync_WithInvalidToken_ReturnsNull()
+    {
+        // Arrange
+        var (encryptedToken, _, _) = _tokenService.GenerateRefreshToken();
+        var userId = Guid.NewGuid();
+
+        // Act
+        var result = await _tokenService.RevokeTokenAsync(encryptedToken, userId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ValidateAndRotateRefreshTokenAsync_WithValidToken_DeletesOldCookieBeforeSettingNew()
+    {
+        // Arrange
+        var user = new User { Id = Guid.NewGuid(), Email = "test@example.com", DisplayName = "Test User" };
+        var (encryptedToken, hashedToken, _) = _tokenService.GenerateRefreshToken();
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            User = user,
+            EncryptedToken = encryptedToken,
+            HashedToken = hashedToken,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
+            IsRevoked = false
+        };
+
+        await _context.Users.AddAsync(user);
+        await _context.RefreshTokens.AddAsync(refreshToken);
+        await _context.SaveChangesAsync();
+
+        var response = new Mock<HttpResponse>();
+        var cookies = new Mock<IResponseCookies>();
+        response.Setup(r => r.Cookies).Returns(cookies.Object);
+
+        _mockJwtService.Setup(x => x.GenerateToken(It.IsAny<User>()))
+            .Returns("new-access-token");
+
+        // Act
+        await _tokenService.ValidateAndRotateRefreshTokenAsync(
+            encryptedToken,
+            response.Object,
+            "127.0.0.1",
+            "TestBrowser"
+        );
+
+        // Assert
+        cookies.Verify(c => c.Delete(
+            "refreshToken",
+            It.Is<CookieOptions>(o =>
+                o.HttpOnly &&
+                o.Secure &&
+                o.SameSite == SameSiteMode.None
+            )
+        ), Times.Once);
     }
 
     public void Dispose()

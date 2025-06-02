@@ -29,7 +29,7 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponse>> Register(CreateUserDto dto)
+    public async Task<ActionResult<AuthResponseDto>> Register(CreateUserDto dto)
     {
         try
         {
@@ -44,10 +44,9 @@ public class AuthController : ControllerBase
         }
     }
 
-
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginRequestDto request)
     {
         try
         {
@@ -64,7 +63,7 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshRequest? request = null)
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshRequestDto? request = null)
     {
         var rawCookieHeader = Request.Headers.Cookie.ToString();
         _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
@@ -101,13 +100,37 @@ public class AuthController : ControllerBase
         }
     }
 
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> LogoutUser()
+    {
+        var userId = User.GetUserId();
+        if (userId == Guid.Empty)
+            return Unauthorized();
+
+        var encryptedToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrWhiteSpace(encryptedToken))
+            return BadRequest(new { message = "Missing refresh token" });
+
+        var sessionInfo = await _authService.LogoutAsync(userId, encryptedToken, Response);
+
+        return Ok(new
+        {
+            message = "Logged out of current session",
+            session = sessionInfo
+        });
+    }
 
     [Authorize]
     [HttpPost("logout-all")]
     public async Task<IActionResult> LogoutAllSessions()
     {
         var userId = User.GetUserId();
+        if (userId == Guid.Empty)
+            return Unauthorized();
+
         await _authService.LogoutAllSessionsAsync(userId, Response);
         return Ok(new { message = "Logged out of all sessions" });
     }
 }
+

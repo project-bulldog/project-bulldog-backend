@@ -135,6 +135,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(
+            "http://localhost:3000",
             "https://project-bulldog-frontend-git-qa-calatheazs-projects.vercel.app",
             "https://project-bulldog-frontend-git-uat-calatheazs-projects.vercel.app",
             "https://project-bulldog-frontend-git-main-calatheazs-projects.vercel.app"
