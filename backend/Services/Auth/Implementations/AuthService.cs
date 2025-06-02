@@ -31,6 +31,7 @@ public class AuthService : IAuthService
         var (encrypted, hashed, _) = _tokenService.GenerateRefreshToken();
         var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
         var userAgent = _httpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString();
+        var isIOS = userAgent?.Contains("iPhone") == true || userAgent?.Contains("iPad") == true;
 
         var refreshToken = new RefreshToken
         {
@@ -56,12 +57,19 @@ public class AuthService : IAuthService
 
         _logger.LogInformation("User {Id} logged in and tokens issued.", user.Id);
 
-        return new AuthResponse(accessToken, new UserDto
-        {
-            Id = user.Id,
-            Email = user.Email,
-            DisplayName = user.DisplayName
-        });
+        // Only return token in body if iOS
+        var refreshTokenForClient = isIOS ? encrypted : null;
+
+        return new AuthResponse(
+            accessToken,
+            refreshTokenForClient, //Refresh token the frontend needs for iOS fallback
+            new UserDto
+            {
+                Id = user.Id,
+                Email = user.Email,
+                DisplayName = user.DisplayName
+            }
+        );
     }
 
     public async Task LogoutAllSessionsAsync(Guid userId, HttpResponse response)

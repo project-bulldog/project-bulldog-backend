@@ -3,6 +3,7 @@ using backend.Dtos.Users;
 using backend.Extensions;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
+using Backend.Dtos.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -97,7 +98,6 @@ public class AuthController : ControllerBase
     }
 
 
-
     [Authorize]
     [HttpPost("logout-all")]
     public async Task<IActionResult> LogoutAllSessions()
@@ -105,10 +105,5 @@ public class AuthController : ControllerBase
         var userId = User.GetUserId();
         await _authService.LogoutAllSessionsAsync(userId, Response);
         return Ok(new { message = "Logged out of all sessions" });
-    }
-
-    public class RefreshRequest
-    {
-        public string? Token { get; set; }
     }
 }
