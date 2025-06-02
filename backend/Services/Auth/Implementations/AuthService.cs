@@ -31,7 +31,8 @@ public class AuthService : IAuthService
         var (encrypted, hashed, _) = _tokenService.GenerateRefreshToken();
         var ip = _httpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
         var userAgent = _httpContextAccessor.HttpContext?.Request.Headers.UserAgent.ToString();
-        var isIOS = userAgent?.Contains("iPhone") == true || userAgent?.Contains("iPad") == true;
+        var isIOS = userAgent?.ToLower().Contains("iphone") == true || userAgent?.ToLower().Contains("ipad") == true;
+
 
         var refreshToken = new RefreshToken
         {
