@@ -102,7 +102,7 @@ public class AuthController : ControllerBase
             return Ok(new
             {
                 accessToken,
-                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS Safari support
+                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS browser support
             });
         }
         catch (SecurityTokenException ex)
@@ -116,6 +116,8 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> LogoutUser()
     {
+        _logger.LogInformation("🔍 Incoming Cookies: {CookieHeader}", Request.Headers["Cookie"].ToString());
+
         var userId = User.GetUserId();
         if (userId == Guid.Empty)
             return Unauthorized();
