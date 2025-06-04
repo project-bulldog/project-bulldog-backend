@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.Dtos.Summaries;
 using backend.Models;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,9 @@ public class SummaryServiceTests : IDisposable
     private readonly Mock<ILogger<SummaryService>> _loggerMock;
     private readonly BulldogDbContext _context;
     private readonly Mock<IAiService> _aiServiceMock;
+    private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
     private readonly SummaryService _service;
+    private readonly Guid _testUserId = Guid.NewGuid();
 
     public SummaryServiceTests()
     {
@@ -23,7 +26,9 @@ public class SummaryServiceTests : IDisposable
             .Options;
         _context = new BulldogDbContext(options);
         _aiServiceMock = new Mock<IAiService>();
-        _service = new SummaryService(_context, _loggerMock.Object, _aiServiceMock.Object);
+        _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+        _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
+        _service = new SummaryService(_context, _loggerMock.Object, _aiServiceMock.Object, _currentUserProviderMock.Object);
     }
 
 
@@ -81,8 +86,7 @@ public class SummaryServiceTests : IDisposable
         var dto = new CreateSummaryDto
         {
             OriginalText = "Test",
-            SummaryText = "Summary",
-            UserId = user.Id
+            SummaryText = "Summary"
         };
 
         // Act
@@ -93,7 +97,7 @@ public class SummaryServiceTests : IDisposable
         Assert.NotEqual<Guid>(Guid.Empty, result.Id);
         Assert.Equal("Test", result.OriginalText);
         Assert.Equal("Summary", result.SummaryText);
-        Assert.Equal(user.Id, result.UserId);
+        Assert.Equal(_testUserId, result.UserId);
         Assert.Equal("Test User", result.UserDisplayName);
         Assert.Empty(result.ActionItems);
     }
@@ -190,7 +194,7 @@ public class SummaryServiceTests : IDisposable
     {
         var user = new User
         {
-            Id = Guid.NewGuid(),
+            Id = _testUserId,
             Email = email,
             DisplayName = displayName
         };
