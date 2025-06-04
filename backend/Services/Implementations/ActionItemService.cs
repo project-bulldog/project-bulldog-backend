@@ -1,6 +1,9 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
+using backend.Dtos.Summaries;
+using backend.Extensions;
 using backend.Models;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,11 +13,19 @@ namespace backend.Services.Implementations
     {
         private readonly BulldogDbContext _context;
         private readonly ILogger<ActionItemService> _logger;
+        private readonly ISummaryService _summaryService;
+        private readonly ICurrentUserProvider _currentUserProvider;
 
-        public ActionItemService(BulldogDbContext context, ILogger<ActionItemService> logger)
+        public ActionItemService(
+            BulldogDbContext context,
+            ILogger<ActionItemService> logger,
+            ISummaryService summaryService,
+            ICurrentUserProvider currentUserProvider)
         {
             _context = context;
             _logger = logger;
+            _summaryService = summaryService;
+            _currentUserProvider = currentUserProvider;
         }
 
         public async Task<IEnumerable<ActionItemDto>> GetActionItemsAsync()
@@ -46,20 +57,33 @@ namespace backend.Services.Implementations
         public async Task<ActionItemDto> CreateActionItemAsync(CreateActionItemDto itemDto)
         {
             _logger.LogInformation("Creating a new action item");
+
+            // 1️⃣ Ensure we have a SummaryId
+            var summaryId = itemDto.SummaryId ?? (
+                await _summaryService.CreateSummaryAsync(
+                new CreateSummaryDto
+                {
+                    OriginalText = itemDto.Text,
+                    SummaryText = "[Manual Summary]",
+                }
+            )).Id;
+
+            // 2️⃣ Create the ActionItem
             var item = new ActionItem
             {
                 Text = itemDto.Text,
                 DueAt = itemDto.DueAt,
-                SummaryId = itemDto.SummaryId
+                SummaryId = summaryId,
+                IsDone = false
             };
 
             _context.ActionItems.Add(item);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Action item created with id {Id}", item.Id);
-
             return MapToDto(item);
         }
+
 
         public async Task<bool> UpdateActionItemAsync(Guid id, UpdateActionItemDto itemDto)
         {

@@ -1,11 +1,12 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
 using backend.Models;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
+using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
 
 namespace backend.Tests.Services
 {
@@ -13,7 +14,10 @@ namespace backend.Tests.Services
     {
         private readonly BulldogDbContext _context;
         private readonly Mock<ILogger<ActionItemService>> _loggerMock;
+        private readonly Mock<ISummaryService> _summaryServiceMock;
+        private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
         private readonly ActionItemService _service;
+        private readonly Guid _testUserId = Guid.NewGuid();
 
         public ActionItemServiceTests()
         {
@@ -23,7 +27,10 @@ namespace backend.Tests.Services
 
             _context = new BulldogDbContext(options);
             _loggerMock = new Mock<ILogger<ActionItemService>>();
-            _service = new ActionItemService(_context, _loggerMock.Object);
+            _summaryServiceMock = new Mock<ISummaryService>();
+            _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+            _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
+            _service = new ActionItemService(_context, _loggerMock.Object, _summaryServiceMock.Object, _currentUserProviderMock.Object);
         }
 
         public void Dispose()
@@ -188,7 +195,7 @@ namespace backend.Tests.Services
         {
             var user = new User
             {
-                Id = Guid.NewGuid(),
+                Id = _testUserId,
                 Email = "test@example.com",
                 DisplayName = "Test User"
             };
