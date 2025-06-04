@@ -12,7 +12,8 @@ public static class ActionItemMapper
             Id = item.Id,
             Text = item.Text,
             IsDone = item.IsDone,
-            DueAt = item.DueAt
+            DueAt = item.DueAt,
+            SummaryId = item.SummaryId
         };
     }
 

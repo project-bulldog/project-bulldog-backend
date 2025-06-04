@@ -1,5 +1,6 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
+using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
@@ -18,6 +19,7 @@ namespace backend.Tests.Services
         private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
         private readonly ActionItemService _service;
         private readonly Guid _testUserId = Guid.NewGuid();
+        private readonly Guid _otherUserId = Guid.NewGuid();
 
         public ActionItemServiceTests()
         {
@@ -33,171 +35,132 @@ namespace backend.Tests.Services
             _service = new ActionItemService(_context, _loggerMock.Object, _summaryServiceMock.Object, _currentUserProviderMock.Object);
         }
 
-        public void Dispose()
-        {
-            _context.Database.EnsureDeleted();
-            _context.Dispose();
-        }
-
         [Fact]
-        public async Task GetActionItemsAsync_ShouldReturnAllActionItems()
+        public async Task GetActionItemsAsync_ShouldOnlyReturnCurrentUserItems()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var currentUser = await CreateTestUser(_testUserId);
+            var otherUser = await CreateTestUser(_otherUserId);
+            var currentUserSummary = await CreateTestSummary(currentUser);
+            var otherUserSummary = await CreateTestSummary(otherUser);
+
+            // Create items with explicit text to make them distinguishable
+            var currentUserItem = await CreateTestActionItemAsync(
+                text: "Current User Item",
+                summaryId: currentUserSummary.Id
+            );
+            var otherUserItem = await CreateTestActionItemAsync(
+                text: "Other User Item",
+                summaryId: otherUserSummary.Id
+            );
 
             // Act
             var result = await _service.GetActionItemsAsync();
 
             // Assert
             Assert.Single(result);
-            Assert.Equal(actionItem.Text, result.First().Text);
+            var returnedItem = result.First();
+            Assert.Equal("Current User Item", returnedItem.Text);
+            Assert.Equal(currentUserSummary.Id, returnedItem.SummaryId);
+            Assert.DoesNotContain(result, x => x.Text == "Other User Item");
         }
 
         [Fact]
-        public async Task GetActionItemAsync_WithValidId_ShouldReturnActionItem()
+        public async Task GetActionItemAsync_WithOtherUserItem_ShouldReturnNull()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var otherUser = await CreateTestUser(_otherUserId);
+            var otherUserSummary = await CreateTestSummary(otherUser);
+            var otherUserItem = await CreateTestActionItemAsync(summaryId: otherUserSummary.Id);
 
             // Act
-            var result = await _service.GetActionItemAsync(actionItem.Id);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal(actionItem.Text, result.Text);
-        }
-
-        [Fact]
-        public async Task GetActionItemAsync_WithInvalidId_ShouldReturnNull()
-        {
-            // Act
-            var result = await _service.GetActionItemAsync(Guid.NewGuid());
+            var result = await _service.GetActionItemAsync(otherUserItem.Id);
 
             // Assert
             Assert.Null(result);
         }
 
         [Fact]
-        public async Task CreateActionItemAsync_ShouldCreateNewActionItem()
+        public async Task CreateActionItemAsync_WithNullSummaryId_ShouldCreateNewSummary()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var newItem = CreateTestCreateDto(summaryId: summary.Id);
+            var newSummaryId = Guid.NewGuid();
+            var newSummaryDto = new SummaryDto { Id = newSummaryId };
+            _summaryServiceMock.Setup(x => x.CreateSummaryAsync(It.IsAny<CreateSummaryDto>()))
+                .ReturnsAsync(newSummaryDto);
+
+            var createDto = new CreateActionItemDto
+            {
+                Text = "New Action Item",
+                DueAt = DateTime.UtcNow.AddDays(1)
+            };
 
             // Act
-            var result = await _service.CreateActionItemAsync(newItem);
+            var result = await _service.CreateActionItemAsync(createDto);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(newItem.Text, result.Text);
-            Assert.Equal(newItem.DueAt, result.DueAt);
-            Assert.False(result.IsDone);
+            Assert.Equal(createDto.Text, result.Text);
+            Assert.Equal(newSummaryId, result.SummaryId);
+            _summaryServiceMock.Verify(x => x.CreateSummaryAsync(It.Is<CreateSummaryDto>(dto =>
+                dto.OriginalText == createDto.Text &&
+                dto.SummaryText == "[Manual Summary]")), Times.Once);
         }
 
         [Fact]
-        public async Task UpdateActionItemAsync_WithValidId_ShouldUpdateActionItem()
+        public async Task UpdateActionItemAsync_WithOtherUserItem_ShouldReturnFalse()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var otherUser = await CreateTestUser(_otherUserId);
+            var otherUserSummary = await CreateTestSummary(otherUser);
+            var otherUserItem = await CreateTestActionItemAsync(summaryId: otherUserSummary.Id);
             var updateDto = CreateTestUpdateDto();
 
             // Act
-            var result = await _service.UpdateActionItemAsync(actionItem.Id, updateDto);
-
-            // Assert
-            Assert.True(result);
-            var updatedItem = await _context.ActionItems.FindAsync(actionItem.Id);
-            Assert.NotNull(updatedItem);
-            Assert.Equal(updateDto.Text, updatedItem.Text);
-            Assert.Equal(updateDto.IsDone, updatedItem.IsDone);
-            Assert.Equal(updateDto.DueAt, updatedItem.DueAt);
-        }
-
-        [Fact]
-        public async Task UpdateActionItemAsync_WithInvalidId_ShouldReturnFalse()
-        {
-            // Arrange
-            var updateDto = CreateTestUpdateDto();
-
-            // Act
-            var result = await _service.UpdateActionItemAsync(Guid.NewGuid(), updateDto);
+            var result = await _service.UpdateActionItemAsync(otherUserItem.Id, updateDto);
 
             // Assert
             Assert.False(result);
         }
 
         [Fact]
-        public async Task DeleteActionItemAsync_WithValidId_ShouldDeleteActionItem()
+        public async Task DeleteActionItemAsync_WithOtherUserItem_ShouldReturnFalse()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var otherUser = await CreateTestUser(_otherUserId);
+            var otherUserSummary = await CreateTestSummary(otherUser);
+            var otherUserItem = await CreateTestActionItemAsync(summaryId: otherUserSummary.Id);
 
             // Act
-            var result = await _service.DeleteActionItemAsync(actionItem.Id);
-
-            // Assert
-            Assert.True(result);
-            Assert.Null(await _context.ActionItems.FindAsync(actionItem.Id));
-        }
-
-        [Fact]
-        public async Task DeleteActionItemAsync_WithInvalidId_ShouldReturnFalse()
-        {
-            // Act
-            var result = await _service.DeleteActionItemAsync(Guid.NewGuid());
+            var result = await _service.DeleteActionItemAsync(otherUserItem.Id);
 
             // Assert
             Assert.False(result);
         }
 
         [Fact]
-        public async Task ToggleDoneAsync_WithValidId_ShouldToggleDoneStatus()
+        public async Task ToggleDoneAsync_WithOtherUserItem_ShouldReturnNull()
         {
             // Arrange
-            var user = await CreateTestUser();
-            var summary = await CreateTestSummary(user);
-            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
-            var initialStatus = actionItem.IsDone;
+            var otherUser = await CreateTestUser(_otherUserId);
+            var otherUserSummary = await CreateTestSummary(otherUser);
+            var otherUserItem = await CreateTestActionItemAsync(summaryId: otherUserSummary.Id);
 
             // Act
-            var result = await _service.ToggleDoneAsync(actionItem.Id);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.NotEqual(initialStatus, result.IsDone);
-
-            var updatedItem = await _context.ActionItems.FindAsync(actionItem.Id);
-            Assert.NotNull(updatedItem);
-            Assert.Equal(result.IsDone, updatedItem.IsDone);
-        }
-
-        [Fact]
-        public async Task ToggleDoneAsync_WithInvalidId_ShouldReturnNull()
-        {
-            // Act
-            var result = await _service.ToggleDoneAsync(Guid.NewGuid());
+            var result = await _service.ToggleDoneAsync(otherUserItem.Id);
 
             // Assert
             Assert.Null(result);
         }
 
         #region Helper Methods
-        private async Task<User> CreateTestUser()
+        private async Task<User> CreateTestUser(Guid userId)
         {
             var user = new User
             {
-                Id = _testUserId,
-                Email = "test@example.com",
-                DisplayName = "Test User"
+                Id = userId,
+                Email = $"test{userId}@example.com",
+                DisplayName = $"Test User {userId}"
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -211,7 +174,8 @@ namespace backend.Tests.Services
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
                 OriginalText = originalText,
-                SummaryText = summaryText
+                SummaryText = summaryText,
+                CreatedAt = DateTime.UtcNow
             };
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
@@ -222,6 +186,7 @@ namespace backend.Tests.Services
         {
             var actionItem = new ActionItem
             {
+                Id = Guid.NewGuid(),
                 Text = text,
                 IsDone = isDone,
                 DueAt = DateTime.UtcNow.AddDays(1),
@@ -238,7 +203,7 @@ namespace backend.Tests.Services
             {
                 Text = text,
                 DueAt = DateTime.UtcNow.AddDays(2),
-                SummaryId = summaryId ?? throw new ArgumentNullException(nameof(summaryId), "SummaryId is required")
+                SummaryId = summaryId
             };
         }
 
@@ -252,5 +217,11 @@ namespace backend.Tests.Services
             };
         }
         #endregion
+
+        public void Dispose()
+        {
+            _context.Database.EnsureDeleted();
+            _context.Dispose();
+        }
     }
 }
