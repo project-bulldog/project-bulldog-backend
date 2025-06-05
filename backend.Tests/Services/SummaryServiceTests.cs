@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
@@ -187,6 +188,32 @@ public class SummaryServiceTests : IDisposable
         Assert.Equal("Action Item", resultActionItem.Text);
         Assert.False(resultActionItem.IsDone);
         Assert.NotNull(resultActionItem.DueAt);
+    }
+
+    [Fact]
+    public async Task GenerateChunkedSummaryWithActionItemsAsync_ShouldCreateSummaryWithActionItems()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var input = "Test input text";
+        var expectedSummary = "Generated summary";
+        var expectedActionItems = new List<string> { "Action item 1", "Action item 2" };
+
+        _aiServiceMock.Setup(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.IsAny<AiChunkedSummaryResponseDto>()))
+            .ReturnsAsync((expectedSummary, expectedActionItems));
+
+        // Act
+        var result = await _service.GenerateChunkedSummaryWithActionItemsAsync(input);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(input, result.OriginalText);
+        Assert.Equal(expectedSummary, result.SummaryText);
+        Assert.Equal(_testUserId, result.UserId);
+        Assert.Equal(2, result.ActionItems.Count());
+        Assert.Contains(result.ActionItems, ai => ai.Text == "Action item 1");
+        Assert.Contains(result.ActionItems, ai => ai.Text == "Action item 2");
+        Assert.All(result.ActionItems, ai => Assert.False(ai.IsDone));
     }
 
     #region Helper Methods

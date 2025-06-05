@@ -1,9 +1,8 @@
 using backend.Data;
-using backend.Dtos.ActionItems;
 using backend.Dtos.Auth;
-using backend.Dtos.Summaries;
 using backend.Dtos.Users;
 using backend.Helpers;
+using backend.Mappers;
 using backend.Models;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -24,33 +23,20 @@ namespace backend.Services.Implementations
         public async Task<IEnumerable<UserDto>> GetUsersAsync()
         {
             _logger.LogInformation("Fetching all users");
+
             var users = await _context.Users
                 .Include(u => u.Summaries)
                 .ThenInclude(s => s.ActionItems)
                 .ToListAsync();
 
-            return [.. users.Select(u => new UserDto
-            {
-                Id = u.Id,
-                Email = u.Email,
-                DisplayName = u.DisplayName,
-                Summaries = [.. u.Summaries.Select(s => new SummaryDto
-                {
-                    Id = s.Id,
-                    ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
-                    {
-                        Id = ai.Id,
-                        Text = ai.Text,
-                        IsDone = ai.IsDone,
-                        DueAt = ai.DueAt
-                    })]
-                })]
-            })];
+            return [.. users.Select(UserMapper.ToDto)];
         }
+
 
         public async Task<UserDto?> GetUserAsync(Guid id)
         {
             _logger.LogInformation("Fetching user with id {Id}", id);
+
             var user = await _context.Users
                 .Include(u => u.Summaries)
                 .ThenInclude(s => s.ActionItems)
@@ -62,23 +48,7 @@ namespace backend.Services.Implementations
                 return null;
             }
 
-            return new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                DisplayName = user.DisplayName,
-                Summaries = [.. user.Summaries.Select(s => new SummaryDto
-                {
-                    Id = s.Id,
-                    ActionItems = [.. s.ActionItems.Select(ai => new ActionItemDto
-                    {
-                        Id = ai.Id,
-                        Text = ai.Text,
-                        IsDone = ai.IsDone,
-                        DueAt = ai.DueAt
-                    })]
-                })]
-            };
+            return UserMapper.ToDto(user);
         }
 
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
@@ -90,18 +60,14 @@ namespace backend.Services.Implementations
                 DisplayName = dto.DisplayName
             };
 
+            var userId = user.Id;
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("User created with id {Id}", user.Id);
+            _logger.LogInformation("User created with id {Id}", userId);
 
-            return new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                DisplayName = user.DisplayName,
-                Summaries = [] //new users won't have summaries yet
-            };
+            return UserMapper.ToDto(user);
         }
 
         public async Task<User> RegisterUserAsync(CreateUserDto dto)
@@ -148,8 +114,15 @@ namespace backend.Services.Implementations
                 return false;
             }
 
-            user.Email = updateDto.Email;
-            user.DisplayName = updateDto.DisplayName;
+            if (updateDto.Email is not null)
+            {
+                user.Email = updateDto.Email;
+            }
+
+            if (updateDto.DisplayName is not null)
+            {
+                user.DisplayName = updateDto.DisplayName;
+            }
 
             try
             {

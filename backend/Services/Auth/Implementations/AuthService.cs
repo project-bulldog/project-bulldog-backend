@@ -1,6 +1,6 @@
 using backend.Data;
 using backend.Dtos.Auth;
-using backend.Dtos.Users;
+using backend.Mappers;
 using backend.Models;
 using backend.Models.Auth;
 using backend.Services.Auth.Interfaces;
@@ -59,13 +59,8 @@ public class AuthService : IAuthService
 
         return new AuthResponseDto(
             accessToken,
-            refreshTokenForClient, //Refresh token the frontend needs for iOS fallback
-            new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                DisplayName = user.DisplayName
-            }
+            refreshTokenForClient,
+            UserMapper.ToDto(user)
         );
     }
 
