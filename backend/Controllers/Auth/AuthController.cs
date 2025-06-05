@@ -72,14 +72,21 @@ public class AuthController : ControllerBase
         _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
 #endif
 
-        // Use body token if present (iOS Safari fallback), else fallback to cookie
-        var encryptedToken = request?.Token ?? Request.Cookies["refreshToken"];
+        // Distinguish between iOS fallback and normal flow
+        var tokenFromBody = request?.Token;
+        var tokenFromCookie = Request.Cookies["refreshToken"];
+        var encryptedToken = tokenFromBody ?? tokenFromCookie;
+        var usedBodyFallback = tokenFromBody != null;
 
 #if DEBUG
         var tokenPreview = LogSanitizer.GetSafeTokenPreview(encryptedToken);
         _logger.LogInformation("🔐 Parsed refreshToken ends in: {Preview}", tokenPreview);
+        if (usedBodyFallback)
+        {
+            _logger.LogInformation("📱 Refresh request used fallback via body (likely iOS).");
+        }
 #else
-        _logger.LogDebug("🔐 refreshToken received: {TokenPresent}",
+    _logger.LogDebug("🔐 refreshToken received: {TokenPresent}",
         LogSanitizer.FormatPresence(!string.IsNullOrWhiteSpace(encryptedToken)));
 #endif
 
@@ -99,11 +106,21 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
 
-            return Ok(new
+            if (usedBodyFallback)
             {
-                accessToken,
-                refreshToken = rotatedRefreshToken // ✅ Include in response for iOS browser support
-            });
+                return Ok(new
+                {
+                    accessToken,
+                    refreshToken = rotatedRefreshToken // ✅ iOS needs this
+                });
+            }
+            else
+            {
+                return Ok(new
+                {
+                    accessToken // ✅ Normal browsers get only the access token
+                });
+            }
         }
         catch (SecurityTokenException ex)
         {
@@ -111,6 +128,7 @@ public class AuthController : ControllerBase
             return Unauthorized(ex.Message);
         }
     }
+
 
     [Authorize]
     [HttpPost("logout")]

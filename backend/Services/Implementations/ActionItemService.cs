@@ -70,6 +70,7 @@ public class ActionItemService : IActionItemService
 
         var item = new ActionItem
         {
+            Id = Guid.NewGuid(),
             Text = itemDto.Text,
             DueAt = itemDto.DueAt,
             SummaryId = summaryId,
