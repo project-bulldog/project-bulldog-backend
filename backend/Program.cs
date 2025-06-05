@@ -124,7 +124,7 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,                         // Max 10 requests
+                PermitLimit = 40,                         // Max 40 requests
                 Window = TimeSpan.FromMinutes(1),         // Per 1 minute window
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0                            // No queueing; reject extra
