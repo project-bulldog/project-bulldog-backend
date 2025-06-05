@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ public class AiServiceTests : IDisposable
 {
     private readonly BulldogDbContext _context;
     private readonly Mock<IOpenAiService> _openAiServiceMock;
+    private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
     private readonly AiService _service;
     private readonly Guid _testUserId = Guid.NewGuid();
 
@@ -23,7 +25,9 @@ public class AiServiceTests : IDisposable
 
         _context = new BulldogDbContext(options);
         _openAiServiceMock = new Mock<IOpenAiService>();
-        _service = new AiService(_context, _openAiServiceMock.Object);
+        _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+        _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
+        _service = new AiService(_context, _openAiServiceMock.Object, _currentUserProviderMock.Object);
     }
 
     public void Dispose()
@@ -36,7 +40,6 @@ public class AiServiceTests : IDisposable
     public async Task SummarizeTextAsync_ShouldCreateSummaryAndActionItems()
     {
         // Arrange
-        var userId = Guid.NewGuid();
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
         var expectedActionItems = new List<string> { "Action 1", "Action 2" };
@@ -45,17 +48,17 @@ public class AiServiceTests : IDisposable
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
-        var request = new CreateAiSummaryRequestDto { InputText = inputText };
+        var request = new CreateAiSummaryRequestDto(inputText);
 
         // Act
-        var result = await _service.SummarizeAsync(request, userId);
+        var result = await _service.SummarizeAsync(request);
 
         // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Summary);
         Assert.Equal(inputText, result.Summary.OriginalText);
         Assert.Equal(expectedSummary, result.Summary.SummaryText);
-        Assert.Equal(userId, result.Summary.UserId);
+        Assert.Equal(_testUserId, result.Summary.UserId);
         Assert.Equal(2, result.Summary.ActionItems.Count);
         Assert.Equal(expectedActionItems[0], result.Summary.ActionItems[0].Text);
         Assert.Equal(expectedActionItems[1], result.Summary.ActionItems[1].Text);
@@ -77,7 +80,6 @@ public class AiServiceTests : IDisposable
     public async Task SummarizeTextAsync_WithEmptyActionItems_ShouldCreateSummaryOnly()
     {
         // Arrange
-        var userId = Guid.NewGuid();
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
         var expectedActionItems = new List<string>();
@@ -86,17 +88,17 @@ public class AiServiceTests : IDisposable
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
-        var request = new CreateAiSummaryRequestDto { InputText = inputText };
+        var request = new CreateAiSummaryRequestDto(inputText);
 
         // Act
-        var result = await _service.SummarizeAsync(request, userId);
+        var result = await _service.SummarizeAsync(request);
 
         // Assert
         Assert.NotNull(result);
         Assert.NotNull(result.Summary);
         Assert.Equal(inputText, result.Summary.OriginalText);
         Assert.Equal(expectedSummary, result.Summary.SummaryText);
-        Assert.Equal(userId, result.Summary.UserId);
+        Assert.Equal(_testUserId, result.Summary.UserId);
         Assert.Empty(result.Summary.ActionItems);
 
         // Verify database state
@@ -114,9 +116,8 @@ public class AiServiceTests : IDisposable
     public async Task SummarizeTextAsync_WhenOpenAiServiceThrows_ShouldPropagateException()
     {
         // Arrange
-        var userId = Guid.NewGuid();
         var inputText = "Test input text";
-        var request = new CreateAiSummaryRequestDto { InputText = inputText };
+        var request = new CreateAiSummaryRequestDto(inputText);
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -124,14 +125,13 @@ public class AiServiceTests : IDisposable
 
         // Act & Assert
         await Assert.ThrowsAsync<Exception>(() =>
-            _service.SummarizeAsync(request, userId));
+            _service.SummarizeAsync(request));
     }
 
     [Fact]
     public async Task SummarizeTextAsync_ShouldSetCorrectTimestamps()
     {
         // Arrange
-        var userId = Guid.NewGuid();
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
         var expectedActionItems = new List<string> { "Action 1" };
@@ -140,10 +140,10 @@ public class AiServiceTests : IDisposable
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
-        var request = new CreateAiSummaryRequestDto { InputText = inputText };
+        var request = new CreateAiSummaryRequestDto(inputText);
 
         // Act
-        var result = await _service.SummarizeAsync(request, userId);
+        var result = await _service.SummarizeAsync(request);
 
         // Assert
         Assert.NotNull(result);
@@ -277,5 +277,72 @@ public class AiServiceTests : IDisposable
         _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(input, "gpt-4-turbo"), Times.Once);
         Assert.Contains("GPT-4 Summary", summary);
         Assert.Single(tasks);
+    }
+
+    [Fact]
+    public async Task SummarizeAndExtractActionItemsFromLongTextAsync_ShouldHandleEmptySummaries()
+    {
+        // Arrange
+        var input = string.Join("\n\n", Enumerable.Repeat("Test paragraph", 50));
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => ("", new List<string> { "Task 1" }));
+
+        _openAiServiceMock
+            .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => null);
+
+        // Act
+        var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
+        var (summary, tasks) = result;
+
+        // Assert
+        Assert.Equal("No summary available", summary);
+        Assert.NotEmpty(tasks);
+    }
+
+    [Fact]
+    public async Task SummarizeAndExtractActionItemsFromLongTextAsync_ShouldHandleSpecialCharacters()
+    {
+        // Arrange
+        var input = "Line 1\\n\\nLine 2\r\n\r\nLine 3";
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => ("Summary", new List<string> { "Task 1" }));
+
+        // Act
+        var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
+        var (summary, tasks) = result;
+
+        // Assert
+        Assert.NotNull(summary);
+        Assert.NotEmpty(tasks);
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.Contains("\\n")), It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SummarizeAndExtractActionItemsFromLongTextAsync_ShouldHandleVeryLongParagraphs()
+    {
+        // Arrange
+        var longParagraph = string.Join(" ", Enumerable.Repeat("word", 1000));
+        var input = $"{longParagraph}\n\n{longParagraph}";
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) => ("Summary", new List<string> { "Task 1" }));
+
+        // Act
+        var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
+        var (summary, tasks) = result;
+
+        // Assert
+        Assert.NotNull(summary);
+        Assert.NotEmpty(tasks);
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()), Times.AtLeast(2));
     }
 }

@@ -1,9 +1,9 @@
 using System.Text;
 using backend.Data;
-using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
-using backend.Dtos.Summaries;
+using backend.Mappers;
 using backend.Models;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using SharpToken;
 
@@ -13,18 +13,22 @@ public class AiService : IAiService
 {
     private readonly BulldogDbContext _context;
     private readonly IOpenAiService _openAiService;
+
+    private readonly ICurrentUserProvider _currentUserProvider;
     private const int MaxTokensPerChunk = 400;
     private const string DefaultModel = "gpt-3.5-turbo";
 
-    public AiService(BulldogDbContext context, IOpenAiService openAiService)
+    public AiService(BulldogDbContext context, IOpenAiService openAiService, ICurrentUserProvider currentUserProvider)
     {
         _context = context;
         _openAiService = openAiService;
+        _currentUserProvider = currentUserProvider;
     }
 
-    public async Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request, Guid userId)
+    public async Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request)
     {
-        // 🔥 Call OpenAI with the input text
+        var userId = _currentUserProvider.UserId;
+
         var (summaryText, actionItemTexts) = await _openAiService.SummarizeAndExtractAsync(request.InputText);
 
         var summary = new Summary
@@ -33,46 +37,30 @@ public class AiService : IAiService
             UserId = userId,
             CreatedAt = DateTime.UtcNow,
             OriginalText = request.InputText,
-            SummaryText = summaryText
+            SummaryText = summaryText,
+            ActionItems = [.. actionItemTexts.Select(text => new ActionItem
+            {
+                Id = Guid.NewGuid(),
+                SummaryId = default, // ← EF sets this automatically from the navigation property
+                Text = text,
+                IsDone = false
+            })]
         };
 
-        var actionItems = actionItemTexts.Select(text => new ActionItem
-        {
-            Id = Guid.NewGuid(),
-            SummaryId = summary.Id,
-            Text = text,
-            IsDone = false
-        }).ToList();
-
-        await _context.Summaries.AddAsync(summary);
-        await _context.ActionItems.AddRangeAsync(actionItems);
+        _context.Summaries.Add(summary); // Summary includes ActionItems already
         await _context.SaveChangesAsync();
 
         return new AiSummaryResponseDto
         {
-            Summary = new SummaryDto
-            {
-                Id = summary.Id,
-                OriginalText = summary.OriginalText,
-                SummaryText = summary.SummaryText,
-                CreatedAt = summary.CreatedAt,
-                UserId = summary.UserId,
-                ActionItems = actionItems.Select(ai => new ActionItemDto
-                {
-                    Id = ai.Id,
-                    Text = ai.Text,
-                    IsDone = ai.IsDone,
-                    DueAt = ai.DueAt
-                }).ToList()
-            }
+            Summary = SummaryMapper.ToDto(summary)
         };
     }
 
     #region Chunking methods
     public async Task<string> SummarizeChunkedAsync(AiChunkedSummaryResponseDto request)
     {
-        string model = request.Model ?? DefaultModel;
-        bool useMapReduce = request.UseMapReduce ?? true;
+        var model = request.Model ?? DefaultModel;
+        var useMapReduce = request.UseMapReduce ?? true;
 
         // If model is GPT-4-turbo and input is within token limit, skip chunking
         var encoder = GptEncoding.GetEncodingForModel(model);
@@ -103,8 +91,8 @@ public class AiService : IAiService
 
     public async Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request)
     {
-        string model = request.Model ?? DefaultModel;
-        bool useMapReduce = request.UseMapReduce ?? true;
+        var model = request.Model ?? DefaultModel;
+        var useMapReduce = request.UseMapReduce ?? true;
 
         var encoder = GptEncoding.GetEncodingForModel(model);
         var totalTokens = encoder.CountTokens(request.Input);
@@ -124,6 +112,7 @@ public class AiService : IAiService
         foreach (var chunk in chunks)
         {
             var (summary, actionItems) = await _openAiService.SummarizeAndExtractAsync(chunk, model);
+
             if (!string.IsNullOrEmpty(summary))
             {
                 summaries.Add(summary);
@@ -132,12 +121,15 @@ public class AiService : IAiService
         }
 
         if (!useMapReduce || summaries.Count == 0)
-            return (string.Join("\n\n", summaries), allTasks);
+        {
+            var joinedSummary = string.Join("\n\n", summaries);
+            return (string.IsNullOrEmpty(joinedSummary) ? "No summary available" : joinedSummary, allTasks);
+        }
 
         var stitchedSummaryInput = string.Join("\n\n", summaries);
         var finalSummary = await _openAiService.GetSummaryOnlyAsync($"Summarize this combined summary:\n{stitchedSummaryInput}", model);
 
-        return (finalSummary ?? "No summary available", allTasks);
+        return (string.IsNullOrEmpty(finalSummary) ? "No summary available" : finalSummary, allTasks);
     }
     #endregion
 
@@ -153,11 +145,11 @@ public class AiService : IAiService
         var paragraphs = text.Split(["\n\n"], StringSplitOptions.RemoveEmptyEntries);
 
         var current = new StringBuilder();
-        int currentTokens = 0;
+        var currentTokens = 0;
 
         foreach (var para in paragraphs)
         {
-            int paraTokens = encoder.CountTokens(para);
+            var paraTokens = encoder.CountTokens(para);
 
             if (paraTokens > maxTokens)
             {

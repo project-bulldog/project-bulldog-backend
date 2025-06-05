@@ -138,6 +138,7 @@ public class UserServiceTests : IDisposable
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal(dto.Email, result.Email);
         Assert.Equal(dto.DisplayName, result.DisplayName);
+        Assert.Empty(result.Summaries); // Verify it's a fresh user
 
         // Verify user was created in database
         var createdUser = await _context.Users.FindAsync(result.Id);
@@ -178,6 +179,7 @@ public class UserServiceTests : IDisposable
         Assert.Equal(user.Id, result.Id);
         Assert.Equal(user.Email, result.Email);
         Assert.Equal(user.DisplayName, result.DisplayName);
+        Assert.NotNull(result.Summaries); // Verify we can access the navigation property
     }
 
     [Fact]
@@ -232,6 +234,28 @@ public class UserServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateUserAsync_WithPartialUpdate_ShouldUpdateOnlyProvidedFields()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var updateDto = new UpdateUserDto
+        {
+            Email = "new@test.com"
+            // DisplayName not provided
+        };
+
+        // Act
+        var result = await _service.UpdateUserAsync(user.Id, updateDto);
+
+        // Assert
+        Assert.True(result);
+        var updatedUser = await _context.Users.FindAsync(user.Id);
+        Assert.NotNull(updatedUser);
+        Assert.Equal(updateDto.Email, updatedUser.Email);
+        Assert.Equal("Test User", updatedUser.DisplayName); // Original display name unchanged
+    }
+
+    [Fact]
     public async Task DeleteUserAsync_WithValidId_ShouldDeleteUser()
     {
         // Arrange
@@ -253,6 +277,44 @@ public class UserServiceTests : IDisposable
 
         // Assert
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_ShouldCascadeDeleteSummariesAndActionItems()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var summary = await CreateTestSummary(user);
+        var actionItem = await CreateTestActionItem(summary);
+
+        // Act
+        var result = await _service.DeleteUserAsync(user.Id);
+
+        // Assert
+        Assert.True(result);
+        Assert.Null(await _context.Users.FindAsync(user.Id));
+        Assert.Null(await _context.Summaries.FindAsync(summary.Id));
+        Assert.Null(await _context.ActionItems.FindAsync(actionItem.Id));
+    }
+
+    [Fact]
+    public async Task GetUsersAsync_ShouldIncludeSummariesAndActionItems()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var summary = await CreateTestSummary(user);
+        var actionItem = await CreateTestActionItem(summary);
+
+        // Act
+        var result = await _service.GetUsersAsync();
+        var resultUser = result.First(u => u.Id == user.Id);
+
+        // Assert
+        Assert.Single(resultUser.Summaries);
+        var resultSummary = resultUser.Summaries.First();
+        Assert.Equal(summary.Id, resultSummary.Id);
+        Assert.Single(resultSummary.ActionItems);
+        Assert.Equal(actionItem.Id, resultSummary.ActionItems.First().Id);
     }
 
     public void Dispose()

@@ -1,6 +1,4 @@
 using backend.Dtos.AiSummaries;
-using backend.Dtos.Summaries;
-using backend.Extensions;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,8 +23,7 @@ public class AiController : ControllerBase
     [HttpPost("summarize")]
     public async Task<ActionResult<AiSummaryResponseDto>> SummarizeText([FromBody] CreateAiSummaryRequestDto request)
     {
-        var userId = User.GetUserId();
-        var response = await _aiService.SummarizeAsync(request, userId);
+        var response = await _aiService.SummarizeAsync(request);
         return Ok(response);
     }
 

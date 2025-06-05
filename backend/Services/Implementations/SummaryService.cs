@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
 using backend.Mappers;
 using backend.Models;
@@ -103,40 +104,23 @@ namespace backend.Services.Implementations
                 OriginalText = input,
                 SummaryText = summaryText,
                 UserId = CurrentUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                ActionItems = [.. actionItems.Select(text => new ActionItem
+                {
+                    Id = Guid.NewGuid(),
+                    Text = text,
+                    IsDone = false
+                })]
             };
 
-            _context.Summaries.Add(summary);
+            _context.Summaries.Add(summary); // This will also track the attached action items
             await _context.SaveChangesAsync();
 
-            foreach (var ai in actionItems)
-            {
-                _context.ActionItems.Add(new ActionItem
-                {
-                    SummaryId = summary.Id,
-                    Text = ai,
-                    IsDone = false
-                });
-            }
+            _logger.LogInformation("Generated summary with id {Id} and {Count} action items", summary.Id, summary.ActionItems.Count);
 
-            await _context.SaveChangesAsync();
-
-            var loaded = await _context.Summaries
-                .AsNoTracking()
-                .Include(s => s.User)
-                .Include(s => s.ActionItems)
-                .FirstOrDefaultAsync(s => s.Id == summary.Id);
-
-            if (loaded is null)
-            {
-                _logger.LogError("Failed to reload summary after creation (id: {Id})", summary.Id);
-                throw new InvalidOperationException("Summary was created but could not be reloaded.");
-            }
-
-            _logger.LogInformation("Generated summary with id {Id} and {Count} action items", loaded.Id, loaded.ActionItems.Count);
-
-            return SummaryMapper.ToDto(loaded);
+            return SummaryMapper.ToDto(summary);
         }
+
 
         public async Task<bool> UpdateSummaryAsync(Guid id, UpdateSummaryDto updateDto)
         {
