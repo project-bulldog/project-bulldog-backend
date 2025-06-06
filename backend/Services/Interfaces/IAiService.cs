@@ -11,6 +11,8 @@ public interface IAiService
 
     // Summarize long-form text and extract action items (with chunking + optional map-reduce)
     Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request);
+    // Summarize long-form text and extract action items (with chunking + optional map-reduce) and persist to DB.
+    Task<AiSummaryResponseDto> SummarizeAndSaveChunkedAsync(AiChunkedSummaryResponseDto request);
 }
 
 
