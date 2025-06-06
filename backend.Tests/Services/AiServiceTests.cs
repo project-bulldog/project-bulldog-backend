@@ -5,6 +5,7 @@ using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 
 namespace backend.Tests.Services;
@@ -14,6 +15,7 @@ public class AiServiceTests : IDisposable
     private readonly BulldogDbContext _context;
     private readonly Mock<IOpenAiService> _openAiServiceMock;
     private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
+    private readonly Mock<ILogger<AiService>> _loggerMock;
     private readonly AiService _service;
     private readonly Guid _testUserId = Guid.NewGuid();
 
@@ -26,8 +28,10 @@ public class AiServiceTests : IDisposable
         _context = new BulldogDbContext(options);
         _openAiServiceMock = new Mock<IOpenAiService>();
         _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+        _loggerMock = new Mock<ILogger<AiService>>();
         _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
-        _service = new AiService(_context, _openAiServiceMock.Object, _currentUserProviderMock.Object);
+        // Use a very low chunk threshold for tests
+        _service = new AiService(_context, _currentUserProviderMock.Object, _openAiServiceMock.Object, _loggerMock.Object, 10);
     }
 
     public void Dispose()
@@ -158,7 +162,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph.", 50));
-        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-3.5-turbo");
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -196,7 +200,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("Paragraph content.", 30));
-        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-3.5-turbo");
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -215,7 +219,7 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 200));
-        var request = new AiChunkedSummaryResponseDto(input, _testUserId, false);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, false, "gpt-3.5-turbo");
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -234,12 +238,19 @@ public class AiServiceTests : IDisposable
     {
         // Arrange
         var input = string.Join("\n\n", Enumerable.Repeat("This is a long paragraph filled with many different kinds of words and phrases designed to ensure that the tokenizer splits it into multiple tokens reliably. We are testing the chunking mechanism of the summarizer service here. Let's make sure it works as expected.", 50));
-        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-3.5-turbo");
 
         // Mock the SummarizeAndExtractAsync for chunk processing
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.StartsWith("Summarize this combined summary")), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("Chunk Summary", new List<string> { "Task 1", "Task 2" }));
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string _) =>
+            {
+                if (text.StartsWith("Summarize this combined summary"))
+                {
+                    return ("Final Summary", new List<string> { "Final Task" });
+                }
+                return ("Chunk Summary", new List<string> { "Task 1", "Task 2" });
+            });
 
         // Mock the GetSummaryOnlyAsync for final summary stitching
         _openAiServiceMock
@@ -251,7 +262,12 @@ public class AiServiceTests : IDisposable
         var (summary, tasks) = result;
 
         // Assert
-        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.StartsWith("Summarize this combined summary")), "gpt-3.5-turbo"), Times.AtLeast(2));
+        _openAiServiceMock.Verify(
+            x => x.SummarizeAndExtractAsync(
+                It.Is<string>(s => !s.StartsWith("Summarize this combined summary")),
+                It.IsAny<string>()),
+            Times.AtLeast(2));
+
         Assert.NotNull(summary);
         Assert.Equal("Final Summary", summary);
         Assert.True(tasks.Count >= 4, $"Expected at least 4 tasks, but got {tasks.Count}"); // At least 2 tasks per chunk, at least 2 chunks
@@ -344,5 +360,79 @@ public class AiServiceTests : IDisposable
         Assert.NotNull(summary);
         Assert.NotEmpty(tasks);
         _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()), Times.AtLeast(2));
+    }
+
+    [Fact]
+    public async Task SummarizeAndSaveChunkedAsync_ShouldSaveSummaryAndActionItems()
+    {
+        // Arrange
+        var input = "Test input text";
+        var expectedSummary = "Test summary";
+        var expectedActionItems = new List<string> { "Task 1", "Task 2" };
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((expectedSummary, expectedActionItems));
+
+        // Act
+        var result = await _service.SummarizeAndSaveChunkedAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(input, result.Summary.OriginalText);
+        Assert.Equal(expectedSummary, result.Summary.SummaryText);
+        Assert.Equal(_testUserId, result.Summary.UserId);
+        Assert.Equal(2, result.Summary.ActionItems.Count);
+        Assert.Equal(expectedActionItems[0], result.Summary.ActionItems[0].Text);
+        Assert.Equal(expectedActionItems[1], result.Summary.ActionItems[1].Text);
+        Assert.False(result.Summary.ActionItems[0].IsDone);
+        Assert.False(result.Summary.ActionItems[1].IsDone);
+
+        // Verify database state
+        var savedSummary = await _context.Summaries
+            .Include(s => s.ActionItems)
+            .FirstOrDefaultAsync(s => s.Id == result.Summary.Id);
+
+        Assert.NotNull(savedSummary);
+        Assert.Equal(input, savedSummary.OriginalText);
+        Assert.Equal(expectedSummary, savedSummary.SummaryText);
+        Assert.Equal(2, savedSummary.ActionItems.Count);
+    }
+
+    [Fact]
+    public async Task SummarizeAndSaveChunkedAsync_ShouldHandleEmptyActionItems()
+    {
+        // Arrange
+        var input = "Test input text";
+        var expectedSummary = "Test summary";
+        var expectedActionItems = new List<string>();
+        var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
+
+        _openAiServiceMock
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((expectedSummary, expectedActionItems));
+
+        // Act
+        var result = await _service.SummarizeAndSaveChunkedAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.NotNull(result.Summary);
+        Assert.Equal(input, result.Summary.OriginalText);
+        Assert.Equal(expectedSummary, result.Summary.SummaryText);
+        Assert.Equal(_testUserId, result.Summary.UserId);
+        Assert.Empty(result.Summary.ActionItems);
+
+        // Verify database state
+        var savedSummary = await _context.Summaries
+            .Include(s => s.ActionItems)
+            .FirstOrDefaultAsync(s => s.Id == result.Summary.Id);
+
+        Assert.NotNull(savedSummary);
+        Assert.Equal(input, savedSummary.OriginalText);
+        Assert.Equal(expectedSummary, savedSummary.SummaryText);
+        Assert.Empty(savedSummary.ActionItems);
     }
 }

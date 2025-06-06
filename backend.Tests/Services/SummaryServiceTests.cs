@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
 using backend.Models;
@@ -101,6 +102,33 @@ public class SummaryServiceTests : IDisposable
         Assert.Equal(_testUserId, result.UserId);
         Assert.Equal("Test User", result.UserDisplayName);
         Assert.Empty(result.ActionItems);
+    }
+
+    [Fact]
+    public async Task CreateSummaryAsync_WithActionItems_ShouldCreateSummaryWithActionItems()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var dto = new CreateSummaryDto
+        {
+            OriginalText = "Test",
+            SummaryText = "Summary",
+            ActionItems = new List<CreateActionItemDto>
+            {
+                new CreateActionItemDto { Text = "Action 1", DueAt = DateTime.UtcNow.AddDays(1) },
+                new CreateActionItemDto { Text = "Action 2", DueAt = DateTime.UtcNow.AddDays(2) }
+            }
+        };
+
+        // Act
+        var result = await _service.CreateSummaryAsync(dto);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.ActionItems.Count());
+        Assert.Contains(result.ActionItems, ai => ai.Text == "Action 1");
+        Assert.Contains(result.ActionItems, ai => ai.Text == "Action 2");
+        Assert.All(result.ActionItems, ai => Assert.False(ai.IsDone));
     }
 
     [Fact]

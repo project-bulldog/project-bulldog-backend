@@ -71,6 +71,18 @@ namespace backend.Services.Implementations
                 CreatedAt = DateTime.UtcNow
             };
 
+            // If action items are provided, add them
+            if (dto.ActionItems != null && dto.ActionItems.Count > 0)
+            {
+                summary.ActionItems = dto.ActionItems.Select(ai => new ActionItem
+                {
+                    Id = Guid.NewGuid(),
+                    Text = ai.Text,
+                    DueAt = ai.DueAt,
+                    IsDone = false
+                }).ToList();
+            }
+
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
 

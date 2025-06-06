@@ -42,4 +42,12 @@ public class AiController : ControllerBase
         var (summary, actionItems) = await _aiService.SummarizeAndExtractActionItemsChunkedAsync(request);
         return Ok(new AiSummaryWithTasksResponseDto(summary, actionItems));
     }
+
+    // POST: api/ai/generate-chunked-summary-with-action-items-and-save
+    [HttpPost("generate-chunked-summary-with-action-items-and-save")]
+    public async Task<ActionResult<AiSummaryResponseDto>> GenerateAndSaveChunked([FromBody] AiChunkedSummaryResponseDto request)
+    {
+        var response = await _aiService.SummarizeAndSaveChunkedAsync(request);
+        return Ok(response);
+    }
 }
