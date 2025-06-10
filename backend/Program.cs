@@ -4,7 +4,6 @@ using System.Threading.RateLimiting;
 using backend.Data;
 using backend.HealthChecks;
 using backend.Infrastructure;
-using backend.Services.Auth;
 using backend.Services.Auth.Implementations;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
