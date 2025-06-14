@@ -178,7 +178,6 @@ namespace backend.Services.Implementations
                 Summary = SummaryMapper.ToDto(summary)
             };
         }
-
         #region Private Methods
         private static List<string> ChunkByTokens(string input, GptEncoding encoder, int maxTokens)
         {

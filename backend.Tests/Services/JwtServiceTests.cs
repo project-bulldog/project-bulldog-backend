@@ -45,8 +45,8 @@ public class JwtServiceTests
 
         // Assert
         Assert.NotNull(token);
-        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.Email && c.Value == user.Email);
-        Assert.Contains(jwtToken.Claims, c => c.Type == ClaimTypes.NameIdentifier && c.Value == user.Id.ToString());
+        Assert.Contains(jwtToken.Claims, c => c.Type == JwtRegisteredClaimNames.Email && c.Value == user.Email);
+        Assert.Contains(jwtToken.Claims, c => c.Type == JwtRegisteredClaimNames.Sub && c.Value == user.Id.ToString());
         Assert.Contains(jwtToken.Claims, c => c.Type == "displayName" && c.Value == user.DisplayName);
     }
 
@@ -65,11 +65,31 @@ public class JwtServiceTests
         // Act
         var principal = _jwtService.ValidateToken(token);
 
+        // Debug: Print all claims
+        Console.WriteLine("All claims in principal:");
+        foreach (var claim in principal?.Claims ?? Enumerable.Empty<Claim>())
+        {
+            Console.WriteLine($"Type: {claim.Type}, Value: {claim.Value}");
+        }
+
         // Assert
         Assert.NotNull(principal);
-        Assert.Equal(user.Email, principal.FindFirst(ClaimTypes.Email)?.Value);
-        Assert.Equal(user.Id.ToString(), principal.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-        Assert.Equal(user.DisplayName, principal.FindFirst("displayName")?.Value);
+        var emailClaim = principal.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Email);
+        var subClaim = principal.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub);
+        var displayNameClaim = principal.Claims.FirstOrDefault(c => c.Type == "displayName");
+
+        Console.WriteLine($"\nLooking for specific claims:");
+        Console.WriteLine($"Email claim found: {emailClaim != null}");
+        Console.WriteLine($"Sub claim found: {subClaim != null}");
+        Console.WriteLine($"DisplayName claim found: {displayNameClaim != null}");
+
+        Assert.NotNull(emailClaim);
+        Assert.NotNull(subClaim);
+        Assert.NotNull(displayNameClaim);
+
+        Assert.Equal(user.Email, emailClaim.Value);
+        Assert.Equal(user.Id.ToString(), subClaim.Value);
+        Assert.Equal(user.DisplayName, displayNameClaim.Value);
     }
 
     [Fact]

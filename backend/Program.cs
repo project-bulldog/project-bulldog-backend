@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Azure.Storage.Blobs;
 using backend.Data;
 using backend.HealthChecks;
 using backend.Infrastructure;
@@ -15,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.IdentityModel.Tokens;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 //Logging
 builder.Logging.ClearProviders();
@@ -99,12 +100,21 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
 builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
+builder.Services.AddScoped<IUploadService, UploadService>();
 
 //Background Services
 builder.Services.AddHostedService<TokenCleanupHostedService>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
+
+//BlobStorage
+builder.Services.AddSingleton<BlobServiceClient>(x =>
+{
+    IConfiguration config = x.GetRequiredService<IConfiguration>();
+    var connectionString = config.GetSection("AzureBlobStorage")["ConnectionString"];
+    return new BlobServiceClient(connectionString);
+});
 
 
 //Fluent Validation
@@ -124,7 +134,7 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 40,                         // Max 40 requests
-                Window = TimeSpan.FromMinutes(1),         // Per 1 minute window
+                Window = TimeSpan.FromMinutes(1),         // Per 1-minute window
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 0                            // No queueing; reject extra
             }));
@@ -149,7 +159,7 @@ builder.Services.AddCors(options =>
 });
 
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 //Health Checks
 app.MapHealthChecks("/health", new HealthCheckOptions
@@ -175,7 +185,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 });
 
 //Test logging
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
+ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 app.MapGet("/server-time", () => Results.Ok(DateTime.UtcNow));
 
 
@@ -198,12 +208,12 @@ if (!app.Environment.IsProduction())
 }
 
 //Database Migration and Seeding
-using (var scope = app.Services.CreateScope())
+using (IServiceScope scope = app.Services.CreateScope())
 {
-    var services = scope.ServiceProvider;
+    IServiceProvider services = scope.ServiceProvider;
     try
     {
-        var db = services.GetRequiredService<BulldogDbContext>();
+        BulldogDbContext db = services.GetRequiredService<BulldogDbContext>();
         await db.Database.MigrateAsync();
         await DbSeeder.SeedAsync(db);
     }
