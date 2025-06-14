@@ -46,15 +46,36 @@ public class JwtService : IJwtService
 
         try
         {
-            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
+            var tokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = false,
                 ValidateAudience = false,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
-                NameClaimType = JwtRegisteredClaimNames.Sub
-            }, out _);
+                NameClaimType = JwtRegisteredClaimNames.Sub,
+                RoleClaimType = ClaimTypes.Role
+            };
+
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var validatedToken);
+
+            // Ensure the claims are properly mapped
+            var identity = principal.Identity as ClaimsIdentity;
+            if (identity != null)
+            {
+                // Add any missing claims from the token
+                var jwtToken = validatedToken as JwtSecurityToken;
+                if (jwtToken != null)
+                {
+                    foreach (var claim in jwtToken.Claims)
+                    {
+                        if (!identity.HasClaim(c => c.Type == claim.Type))
+                        {
+                            identity.AddClaim(claim);
+                        }
+                    }
+                }
+            }
 
             return principal;
         }
