@@ -22,8 +22,8 @@ public class JwtService : IJwtService
     {
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim("displayName", user.DisplayName)
         };
 
@@ -31,9 +31,10 @@ public class JwtService : IJwtService
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            expires: DateTime.UtcNow.AddMinutes(_jwtLifespanMinutes),
             claims: claims,
-            signingCredentials: creds);
+            expires: DateTime.UtcNow.AddMinutes(_jwtLifespanMinutes),
+            signingCredentials: creds
+        );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
@@ -51,7 +52,8 @@ public class JwtService : IJwtService
                 ValidateAudience = false,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key)
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                NameClaimType = JwtRegisteredClaimNames.Sub
             }, out _);
 
             return principal;
