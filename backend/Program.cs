@@ -7,6 +7,8 @@ using backend.HealthChecks;
 using backend.Infrastructure;
 using backend.Services.Auth.Implementations;
 using backend.Services.Auth.Interfaces;
+using backend.Services.FileUpload.Implementations;
+using backend.Services.FileUpload.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
 using FluentValidation;
@@ -91,6 +93,7 @@ builder.Services.AddSingleton<ICookieService, CookieService>();
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
 
 //Application Services
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<ITokenCleanupService, TokenCleanupService>();
 builder.Services.AddScoped<IActionItemService, ActionItemService>();
@@ -101,6 +104,8 @@ builder.Services.AddScoped<IAiService, AiService>();
 builder.Services.AddScoped<IOpenAiService, OpenAiService>();
 builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddScoped<IUploadService, UploadService>();
+builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
+builder.Services.AddScoped<ITextExtractionTriggerService, TextExtractionTriggerService>();
 
 //Background Services
 builder.Services.AddHostedService<TokenCleanupHostedService>();
@@ -109,7 +114,7 @@ builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
 
 //BlobStorage
-builder.Services.AddSingleton<BlobServiceClient>(x =>
+builder.Services.AddSingleton(x =>
 {
     IConfiguration config = x.GetRequiredService<IConfiguration>();
     var connectionString = config.GetSection("AzureBlobStorage")["ConnectionString"];

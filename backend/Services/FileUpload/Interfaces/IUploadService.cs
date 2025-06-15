@@ -1,4 +1,4 @@
-namespace backend.Services.Interfaces;
+namespace backend.Services.FileUpload.Interfaces;
 
 public interface IUploadService
 {
