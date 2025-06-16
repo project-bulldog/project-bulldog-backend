@@ -105,7 +105,6 @@ builder.Services.AddScoped<IOpenAiService, OpenAiService>();
 builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddScoped<IUploadService, UploadService>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
-builder.Services.AddScoped<ITextExtractionTriggerService, TextExtractionTriggerService>();
 
 //Background Services
 builder.Services.AddHostedService<TokenCleanupHostedService>();
@@ -120,7 +119,6 @@ builder.Services.AddSingleton(x =>
     var connectionString = config.GetSection("AzureBlobStorage")["ConnectionString"];
     return new BlobServiceClient(connectionString);
 });
-
 
 //Fluent Validation
 builder.Services.AddFluentValidationAutoValidation();

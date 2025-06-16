@@ -1,6 +1,8 @@
+using backend.Dtos.AiSummaries;
+
 namespace backend.Services.FileUpload.Interfaces;
 
 public interface IUploadService
 {
-    Task UploadUserFileAsync(IFormFile file);
+    Task<AiSummaryWithTasksResponseDto> UploadUserFileAsync(IFormFile file);
 }
