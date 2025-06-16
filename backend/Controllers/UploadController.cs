@@ -1,30 +1,36 @@
-using backend.Services.Interfaces;
+using backend.Dtos.AiSummaries;
+using backend.Services.FileUpload.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace backend.Controllers;
-
-[ApiController]
-[Route("api/uploads")]
-[Authorize]
-public class UploadController : ControllerBase
+namespace backend.Controllers
 {
-    private readonly IUploadService _uploadService;
-
-    public UploadController(IUploadService uploadService)
+    [ApiController]
+    [Route("api/uploads")]
+    [Authorize]
+    public class UploadController : ControllerBase
     {
-        _uploadService = uploadService;
-    }
+        private readonly IUploadService _uploadService;
 
-    // POST: api/uploads
-    [HttpPost]
-    public async Task<IActionResult> UploadFile([FromForm] IFormFile file)
-    {
-        if (file.Length == 0)
-            return BadRequest("No file uploaded.");
+        public UploadController(IUploadService uploadService)
+        {
+            _uploadService = uploadService;
+        }
 
-        await _uploadService.UploadUserFileAsync(file);
-        return Ok();
+        // POST /api/uploads
+        [HttpPost]
+        public async Task<ActionResult<AiSummaryWithTasksResponseDto>> Post([FromForm] IFormFile file)
+        {
+            if (file is null)
+                return BadRequest("No file provided.");
+
+            // This will:
+            //  1) store the blob
+            //  2) call the Azure Function
+            //  3) get back { summary, tasks }
+            var result = await _uploadService.UploadUserFileAsync(file);
+
+            return Ok(result);
+        }
     }
 }
-
