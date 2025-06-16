@@ -24,16 +24,16 @@ public class UploadService : IUploadService
         _blobStorageService = blobStorageService;
         _httpClient = httpClient;
         _httpCtx = httpCtx;
-        _functionUrl = config["AzureBlobStorage:BlobProcessingFunctionUrl"];
+        _functionUrl = config["AzureBlobStorage:BlobProcessingFunctionUrl"]
+            ?? throw new InvalidOperationException("Missing AzureBlobStorage:BlobProcessingFunctionUrl configuration");
     }
 
     public async Task<AiSummaryWithTasksResponseDto> UploadUserFileAsync(IFormFile file)
     {
         // 1) get user & token
         var userId = _currentUserProvider.UserId.ToString();
-        var token = _httpCtx.HttpContext!
-            .Request.Headers.Authorization.ToString()
-            .Replace("Bearer ", "");
+        var token = _httpCtx.HttpContext?.Request.Headers.Authorization.ToString().Replace("Bearer ", "")
+            ?? throw new InvalidOperationException("Missing authorization header");
 
         // 2) upload blob
         var blobName = await _blobStorageService.UploadFileAsync(file, userId);
