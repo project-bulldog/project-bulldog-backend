@@ -13,6 +13,7 @@ public static class ActionItemMapper
             Text = item.Text,
             IsDone = item.IsDone,
             DueAt = item.DueAt,
+            IsDateOnly = item.IsDateOnly,
             SummaryId = item.SummaryId
         };
     }

@@ -1,4 +1,5 @@
 using backend.Data;
+using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
 using backend.Services.Auth.Interfaces;
@@ -46,7 +47,11 @@ public class AiServiceTests : IDisposable
         // Arrange
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
-        var expectedActionItems = new List<string> { "Action 1", "Action 2" };
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Action 1", IsDone = false, IsDateOnly = true },
+            new ActionItemDto { Text = "Action 2", IsDone = false, IsDateOnly = false }
+        };
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -64,10 +69,12 @@ public class AiServiceTests : IDisposable
         Assert.Equal(expectedSummary, result.Summary.SummaryText);
         Assert.Equal(_testUserId, result.Summary.UserId);
         Assert.Equal(2, result.Summary.ActionItems.Count);
-        Assert.Equal(expectedActionItems[0], result.Summary.ActionItems[0].Text);
-        Assert.Equal(expectedActionItems[1], result.Summary.ActionItems[1].Text);
-        Assert.False(result.Summary.ActionItems[0].IsDone);
-        Assert.False(result.Summary.ActionItems[1].IsDone);
+        Assert.Equal(expectedActionItems[0].Text, result.Summary.ActionItems.First().Text);
+        Assert.Equal(expectedActionItems[1].Text, result.Summary.ActionItems.ElementAt(1).Text);
+        Assert.Equal(expectedActionItems[0].IsDateOnly, result.Summary.ActionItems.First().IsDateOnly);
+        Assert.Equal(expectedActionItems[1].IsDateOnly, result.Summary.ActionItems.ElementAt(1).IsDateOnly);
+        Assert.False(result.Summary.ActionItems.First().IsDone);
+        Assert.False(result.Summary.ActionItems.ElementAt(1).IsDone);
 
         // Verify database state
         var savedSummary = await _context.Summaries
@@ -78,6 +85,8 @@ public class AiServiceTests : IDisposable
         Assert.Equal(inputText, savedSummary.OriginalText);
         Assert.Equal(expectedSummary, savedSummary.SummaryText);
         Assert.Equal(2, savedSummary.ActionItems.Count);
+        Assert.Equal(expectedActionItems[0].IsDateOnly, savedSummary.ActionItems.First().IsDateOnly);
+        Assert.Equal(expectedActionItems[1].IsDateOnly, savedSummary.ActionItems.ElementAt(1).IsDateOnly);
     }
 
     [Fact]
@@ -86,7 +95,7 @@ public class AiServiceTests : IDisposable
         // Arrange
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
-        var expectedActionItems = new List<string>();
+        var expectedActionItems = new List<ActionItemDto>();
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -138,7 +147,10 @@ public class AiServiceTests : IDisposable
         // Arrange
         var inputText = "Test input text";
         var expectedSummary = "Test summary";
-        var expectedActionItems = new List<string> { "Action 1" };
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Action 1", IsDone = false }
+        };
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -247,9 +259,13 @@ public class AiServiceTests : IDisposable
             {
                 if (text.StartsWith("Summarize this combined summary"))
                 {
-                    return ("Final Summary", new List<string> { "Final Task" });
+                    return ("Final Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Final Task", IsDone = false } });
                 }
-                return ("Chunk Summary", new List<string> { "Task 1", "Task 2" });
+                return ("Chunk Summary", new List<ActionItemDto>
+                {
+                    new ActionItemDto { Text = "Task 1", IsDone = false, IsDateOnly = true },
+                    new ActionItemDto { Text = "Task 2", IsDone = false, IsDateOnly = false }
+                });
             });
 
         // Mock the GetSummaryOnlyAsync for final summary stitching
@@ -271,7 +287,12 @@ public class AiServiceTests : IDisposable
         Assert.NotNull(summary);
         Assert.Equal("Final Summary", summary);
         Assert.True(tasks.Count >= 4, $"Expected at least 4 tasks, but got {tasks.Count}"); // At least 2 tasks per chunk, at least 2 chunks
-        Assert.All(tasks, task => Assert.NotNull(task));
+        Assert.All(tasks, task =>
+        {
+            Assert.NotNull(task);
+            Assert.NotNull(task.Text);
+            Assert.False(task.IsDone);
+        });
     }
 
     [Fact]
@@ -283,7 +304,7 @@ public class AiServiceTests : IDisposable
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("GPT-4 Summary", new List<string> { "Task 1" }));
+            .ReturnsAsync((string text, string _) => ("GPT-4 Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -304,7 +325,7 @@ public class AiServiceTests : IDisposable
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("", new List<string> { "Task 1" }));
+            .ReturnsAsync((string text, string _) => ("", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -328,7 +349,7 @@ public class AiServiceTests : IDisposable
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("Summary", new List<string> { "Task 1" }));
+            .ReturnsAsync((string text, string _) => ("Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -350,7 +371,7 @@ public class AiServiceTests : IDisposable
 
         _openAiServiceMock
             .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("Summary", new List<string> { "Task 1" }));
+            .ReturnsAsync((string text, string _) => ("Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -368,7 +389,11 @@ public class AiServiceTests : IDisposable
         // Arrange
         var input = "Test input text";
         var expectedSummary = "Test summary";
-        var expectedActionItems = new List<string> { "Task 1", "Task 2" };
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Task 1", IsDone = false, IsDateOnly = true },
+            new ActionItemDto { Text = "Task 2", IsDone = false, IsDateOnly = false }
+        };
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
@@ -385,10 +410,12 @@ public class AiServiceTests : IDisposable
         Assert.Equal(expectedSummary, result.Summary.SummaryText);
         Assert.Equal(_testUserId, result.Summary.UserId);
         Assert.Equal(2, result.Summary.ActionItems.Count);
-        Assert.Equal(expectedActionItems[0], result.Summary.ActionItems[0].Text);
-        Assert.Equal(expectedActionItems[1], result.Summary.ActionItems[1].Text);
-        Assert.False(result.Summary.ActionItems[0].IsDone);
-        Assert.False(result.Summary.ActionItems[1].IsDone);
+        Assert.Equal(expectedActionItems[0].Text, result.Summary.ActionItems.First().Text);
+        Assert.Equal(expectedActionItems[1].Text, result.Summary.ActionItems.ElementAt(1).Text);
+        Assert.Equal(expectedActionItems[0].IsDateOnly, result.Summary.ActionItems.First().IsDateOnly);
+        Assert.Equal(expectedActionItems[1].IsDateOnly, result.Summary.ActionItems.ElementAt(1).IsDateOnly);
+        Assert.False(result.Summary.ActionItems.First().IsDone);
+        Assert.False(result.Summary.ActionItems.ElementAt(1).IsDone);
 
         // Verify database state
         var savedSummary = await _context.Summaries
@@ -399,6 +426,8 @@ public class AiServiceTests : IDisposable
         Assert.Equal(input, savedSummary.OriginalText);
         Assert.Equal(expectedSummary, savedSummary.SummaryText);
         Assert.Equal(2, savedSummary.ActionItems.Count);
+        Assert.Equal(expectedActionItems[0].IsDateOnly, savedSummary.ActionItems.First().IsDateOnly);
+        Assert.Equal(expectedActionItems[1].IsDateOnly, savedSummary.ActionItems.ElementAt(1).IsDateOnly);
     }
 
     [Fact]
@@ -407,7 +436,7 @@ public class AiServiceTests : IDisposable
         // Arrange
         var input = "Test input text";
         var expectedSummary = "Test summary";
-        var expectedActionItems = new List<string>();
+        var expectedActionItems = new List<ActionItemDto>();
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock

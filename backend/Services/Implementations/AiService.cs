@@ -1,12 +1,10 @@
-using System.Text.Json.Serialization;
 using backend.Data;
+using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
 using backend.Mappers;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using SharpToken;
 
 namespace backend.Services.Implementations
@@ -40,7 +38,7 @@ namespace backend.Services.Implementations
             var userId = _currentUserProvider.UserId;
 
             // Call your OpenAI wrapper for summary + action items
-            var (summaryText, actionItemTexts) = await _openAiService.SummarizeAndExtractAsync(request.InputText);
+            var (summaryText, actionItemDtos) = await _openAiService.SummarizeAndExtractAsync(request.InputText);
 
             // Build the entity, including ActionItems
             var summary = new Summary
@@ -50,13 +48,15 @@ namespace backend.Services.Implementations
                 CreatedAt = DateTime.UtcNow,
                 OriginalText = request.InputText,
                 SummaryText = summaryText,
-                ActionItems = actionItemTexts.Select(text => new ActionItem
+                ActionItems = [.. actionItemDtos.Select(dto => new ActionItem
                 {
                     Id = Guid.NewGuid(),
-                    Text = text,
-                    IsDone = false
+                    Text = dto.Text,
+                    DueAt = dto.DueAt,
+                    IsDone = false,
+                    IsDateOnly = dto.IsDateOnly
                     // SummaryId will be automatically set by EF via the navigation
-                }).ToList()
+                })]
             };
 
             _context.Summaries.Add(summary);
@@ -102,7 +102,7 @@ namespace backend.Services.Implementations
             return await _openAiService.GetSummaryOnlyAsync($"Summarize this combined summary:\n{stitchedSummaryInput}", model);
         }
 
-        public async Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request)
+        public async Task<(string summary, List<ActionItemDto> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request)
         {
             var model = request.Model ?? DefaultModel;
             var useMapReduce = request.UseMapReduce ?? true;
@@ -117,7 +117,7 @@ namespace backend.Services.Implementations
 
             var chunks = ChunkByTokens(request.Input, encoder, _maxTokensPerChunk);
             var summaries = new List<string>();
-            var allTasks = new List<string>();
+            var allTasks = new List<ActionItemDto>();
 
             _logger.LogInformation($"[Extract] Total tokens: {totalTokens}");
             _logger.LogInformation($"[Extract] Chunk count: {chunks.Count}");
@@ -150,7 +150,7 @@ namespace backend.Services.Implementations
             var userId = _currentUserProvider.UserId;
 
             // 3.1) Run the chunked logic (in-memory only)
-            var (summaryText, actionItemTexts) = await SummarizeAndExtractActionItemsChunkedAsync(request);
+            var (summaryText, actionItemDtos) = await SummarizeAndExtractActionItemsChunkedAsync(request);
 
             // 3.2) Build the Summary entity (with ActionItems)
             var summary = new Summary
@@ -160,12 +160,14 @@ namespace backend.Services.Implementations
                 CreatedAt = DateTime.UtcNow,
                 OriginalText = request.Input,
                 SummaryText = summaryText,
-                ActionItems = actionItemTexts.Select(text => new ActionItem
+                ActionItems = [.. actionItemDtos.Select(dto => new ActionItem
                 {
                     Id = Guid.NewGuid(),
-                    Text = text,
-                    IsDone = false
-                }).ToList()
+                    Text = dto.Text,
+                    DueAt = dto.DueAt,
+                    IsDone = false,
+                    IsDateOnly = dto.IsDateOnly
+                })]
             };
 
             // 3.3) Persist Summary + ActionItems

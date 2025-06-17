@@ -1,2 +1,5 @@
 namespace backend.Dtos.AiSummaries;
-public record AiSummaryWithTasksResponseDto(string Summary, List<string> ActionItems);
+using System.Collections.Generic;
+using backend.Dtos.ActionItems;
+
+public record AiSummaryWithTasksResponseDto(string Summary, List<ActionItemDto> ActionItems);
