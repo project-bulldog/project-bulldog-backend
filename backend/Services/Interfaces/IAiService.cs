@@ -1,3 +1,4 @@
+using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
 
 namespace backend.Services.Interfaces;
@@ -10,7 +11,7 @@ public interface IAiService
     Task<string> SummarizeChunkedAsync(AiChunkedSummaryResponseDto request);
 
     // Summarize long-form text and extract action items (with chunking + optional map-reduce)
-    Task<(string summary, List<string> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request);
+    Task<(string summary, List<ActionItemDto> actionItems)> SummarizeAndExtractActionItemsChunkedAsync(AiChunkedSummaryResponseDto request);
     // Summarize long-form text and extract action items (with chunking + optional map-reduce) and persist to DB.
     Task<AiSummaryResponseDto> SummarizeAndSaveChunkedAsync(AiChunkedSummaryResponseDto request);
 }

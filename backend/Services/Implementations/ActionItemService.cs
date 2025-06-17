@@ -73,6 +73,7 @@ public class ActionItemService : IActionItemService
             Id = Guid.NewGuid(),
             Text = itemDto.Text,
             DueAt = itemDto.DueAt,
+            IsDateOnly = itemDto.IsDateOnly,
             SummaryId = summaryId,
             IsDone = false
         };
@@ -99,6 +100,7 @@ public class ActionItemService : IActionItemService
         item.Text = itemDto.Text;
         item.IsDone = itemDto.IsDone;
         item.DueAt = itemDto.DueAt;
+        item.IsDateOnly = itemDto.IsDateOnly;
 
         try
         {

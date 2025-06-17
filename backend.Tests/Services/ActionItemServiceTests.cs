@@ -153,6 +153,121 @@ namespace backend.Tests.Services
             Assert.Null(result);
         }
 
+        [Fact]
+        public async Task CreateActionItemAsync_WithExistingSummaryId_ShouldCreateItemWithSummary()
+        {
+            // Arrange
+            var user = await CreateTestUser(_testUserId);
+            var summary = await CreateTestSummary(user);
+            var createDto = new CreateActionItemDto
+            {
+                Text = "New Action Item",
+                DueAt = DateTime.UtcNow.AddDays(1),
+                SummaryId = summary.Id,
+                IsDateOnly = true
+            };
+
+            // Act
+            var result = await _service.CreateActionItemAsync(createDto);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(createDto.Text, result.Text);
+            Assert.Equal(summary.Id, result.SummaryId);
+            Assert.Equal(createDto.DueAt, result.DueAt);
+            Assert.True(result.IsDateOnly);
+            Assert.False(result.IsDone);
+        }
+
+        [Fact]
+        public async Task UpdateActionItemAsync_WithValidItem_ShouldUpdateSuccessfully()
+        {
+            // Arrange
+            var user = await CreateTestUser(_testUserId);
+            var summary = await CreateTestSummary(user);
+            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var updateDto = new UpdateActionItemDto
+            {
+                Text = "Updated Text",
+                IsDone = true,
+                DueAt = DateTime.UtcNow.AddDays(2),
+                IsDateOnly = true
+            };
+
+            // Act
+            var result = await _service.UpdateActionItemAsync(actionItem.Id, updateDto);
+
+            // Assert
+            Assert.True(result);
+            var updatedItem = await _context.ActionItems.FindAsync(actionItem.Id);
+            Assert.NotNull(updatedItem);
+            Assert.Equal(updateDto.Text, updatedItem!.Text);
+            Assert.Equal(updateDto.IsDone, updatedItem.IsDone);
+            Assert.Equal(updateDto.DueAt, updatedItem.DueAt);
+            Assert.Equal(updateDto.IsDateOnly, updatedItem.IsDateOnly);
+        }
+
+        [Fact]
+        public async Task ToggleDoneAsync_WithValidItem_ShouldToggleSuccessfully()
+        {
+            // Arrange
+            var user = await CreateTestUser(_testUserId);
+            var summary = await CreateTestSummary(user);
+            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+            var initialDoneState = actionItem.IsDone;
+
+            // Act
+            var result = await _service.ToggleDoneAsync(actionItem.Id);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.NotEqual(initialDoneState, result.IsDone);
+            var updatedItem = await _context.ActionItems.FindAsync(actionItem.Id);
+            Assert.NotNull(updatedItem);
+            Assert.Equal(result.IsDone, updatedItem!.IsDone);
+        }
+
+        [Fact]
+        public async Task DeleteActionItemAsync_WithValidItem_ShouldDeleteSuccessfully()
+        {
+            // Arrange
+            var user = await CreateTestUser(_testUserId);
+            var summary = await CreateTestSummary(user);
+            var actionItem = await CreateTestActionItemAsync(summaryId: summary.Id);
+
+            // Act
+            var result = await _service.DeleteActionItemAsync(actionItem.Id);
+
+            // Assert
+            Assert.True(result);
+            var deletedItem = await _context.ActionItems.FindAsync(actionItem.Id);
+            Assert.Null(deletedItem);
+        }
+
+        [Fact]
+        public async Task GetActionItemAsync_WithValidItem_ShouldReturnItem()
+        {
+            // Arrange
+            var user = await CreateTestUser(_testUserId);
+            var summary = await CreateTestSummary(user);
+            var actionItem = await CreateTestActionItemAsync(
+                text: "Test Item",
+                isDone: true,
+                summaryId: summary.Id
+            );
+
+            // Act
+            var result = await _service.GetActionItemAsync(actionItem.Id);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(actionItem.Id, result!.Id);
+            Assert.Equal(actionItem.Text, result.Text);
+            Assert.Equal(actionItem.IsDone, result.IsDone);
+            Assert.Equal(actionItem.DueAt, result.DueAt);
+            Assert.Equal(actionItem.SummaryId, result.SummaryId);
+        }
+
         #region Helper Methods
         private async Task<User> CreateTestUser(Guid userId)
         {

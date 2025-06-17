@@ -27,12 +27,13 @@ namespace backend.Services.Implementations
 
         public async Task<IEnumerable<SummaryDto>> GetSummariesAsync()
         {
-            _logger.LogInformation("Fetching all summaries");
+            _logger.LogInformation("Fetching all summaries for user {UserId}", CurrentUserId);
 
             var summaries = await _context.Summaries
                 .AsNoTracking()
                 .Include(s => s.ActionItems)
                 .Include(s => s.User)
+                .Where(s => s.UserId == CurrentUserId)
                 .ToListAsync();
 
             _logger.LogInformation("Fetched {Count} summaries", summaries.Count);
@@ -78,8 +79,11 @@ namespace backend.Services.Implementations
                 {
                     Id = Guid.NewGuid(),
                     Text = ai.Text,
-                    DueAt = ai.DueAt,
-                    IsDone = false
+                    DueAt = ai.DueAt.HasValue
+                        ? DateTime.SpecifyKind(ai.DueAt.Value, DateTimeKind.Utc)
+                        : null,
+                    IsDone = false,
+                    IsDateOnly = ai.IsDateOnly
                 }).ToList();
             }
 
@@ -117,11 +121,13 @@ namespace backend.Services.Implementations
                 SummaryText = summaryText,
                 UserId = CurrentUserId,
                 CreatedAt = DateTime.UtcNow,
-                ActionItems = [.. actionItems.Select(text => new ActionItem
+                ActionItems = [.. actionItems.Select(ai => new ActionItem
                 {
                     Id = Guid.NewGuid(),
-                    Text = text,
-                    IsDone = false
+                    Text = ai.Text,
+                    DueAt = ai.DueAt,
+                    IsDone = false,
+                    IsDateOnly = ai.IsDateOnly
                 })]
             };
 

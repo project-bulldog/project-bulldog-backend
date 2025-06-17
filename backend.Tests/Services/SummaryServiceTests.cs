@@ -225,7 +225,11 @@ public class SummaryServiceTests : IDisposable
         var user = await CreateTestUser();
         var input = "Test input text";
         var expectedSummary = "Generated summary";
-        var expectedActionItems = new List<string> { "Action item 1", "Action item 2" };
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Action item 1", IsDone = false },
+            new ActionItemDto { Text = "Action item 2", IsDone = false }
+        };
 
         _aiServiceMock.Setup(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.IsAny<AiChunkedSummaryResponseDto>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
@@ -242,6 +246,180 @@ public class SummaryServiceTests : IDisposable
         Assert.Contains(result.ActionItems, ai => ai.Text == "Action item 1");
         Assert.Contains(result.ActionItems, ai => ai.Text == "Action item 2");
         Assert.All(result.ActionItems, ai => Assert.False(ai.IsDone));
+    }
+
+    [Fact]
+    public async Task GenerateChunkedSummaryWithActionItemsAsync_WithModelOverride_ShouldUseSpecifiedModel()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var input = "Test input text";
+        var expectedSummary = "Generated summary";
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Action item 1", IsDone = false }
+        };
+        var modelOverride = "gpt-4-turbo";
+
+        _aiServiceMock.Setup(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.Is<AiChunkedSummaryResponseDto>(dto =>
+            dto.Model == modelOverride)))
+            .ReturnsAsync((expectedSummary, expectedActionItems));
+
+        // Act
+        var result = await _service.GenerateChunkedSummaryWithActionItemsAsync(input, true, modelOverride);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(expectedSummary, result.SummaryText);
+        Assert.Single(result.ActionItems);
+        _aiServiceMock.Verify(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.Is<AiChunkedSummaryResponseDto>(dto =>
+            dto.Model == modelOverride)), Times.Once);
+    }
+
+    [Fact]
+    public async Task GenerateChunkedSummaryWithActionItemsAsync_WithoutMapReduce_ShouldDisableMapReduce()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var input = "Test input text";
+        var expectedSummary = "Generated summary";
+        var expectedActionItems = new List<ActionItemDto>
+        {
+            new ActionItemDto { Text = "Action item 1", IsDone = false }
+        };
+
+        _aiServiceMock.Setup(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.Is<AiChunkedSummaryResponseDto>(dto =>
+            dto.UseMapReduce == false)))
+            .ReturnsAsync((expectedSummary, expectedActionItems));
+
+        // Act
+        var result = await _service.GenerateChunkedSummaryWithActionItemsAsync(input, false);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(expectedSummary, result.SummaryText);
+        Assert.Single(result.ActionItems);
+        _aiServiceMock.Verify(x => x.SummarizeAndExtractActionItemsChunkedAsync(It.Is<AiChunkedSummaryResponseDto>(dto =>
+            dto.UseMapReduce == false)), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSummariesAsync_ShouldOnlyReturnCurrentUserSummaries()
+    {
+        // Arrange
+        var otherUserId = Guid.NewGuid();
+
+        // Create users
+        var currentUser = new User
+        {
+            Id = _testUserId,
+            Email = "current@test.com",
+            DisplayName = "Current User"
+        };
+        var otherUser = new User
+        {
+            Id = otherUserId,
+            Email = "other@test.com",
+            DisplayName = "Other User"
+        };
+
+        await _context.Users.AddAsync(currentUser);
+        await _context.Users.AddAsync(otherUser);
+        await _context.SaveChangesAsync();
+
+        var currentUserSummary = new Summary
+        {
+            Id = Guid.NewGuid(),
+            UserId = _testUserId,
+            OriginalText = "Current User Summary",
+            SummaryText = "Summary",
+            CreatedAt = DateTime.UtcNow,
+            User = currentUser
+        };
+
+        var otherUserSummary = new Summary
+        {
+            Id = Guid.NewGuid(),
+            UserId = otherUserId,
+            OriginalText = "Other User Summary",
+            SummaryText = "Summary",
+            CreatedAt = DateTime.UtcNow,
+            User = otherUser
+        };
+
+        // Add summaries to database
+        await _context.Summaries.AddAsync(currentUserSummary);
+        await _context.Summaries.AddAsync(otherUserSummary);
+        await _context.SaveChangesAsync();
+
+        // Verify summaries were saved
+        var savedSummaries = await _context.Summaries
+            .Include(s => s.User)
+            .ToListAsync();
+        Assert.Equal(2, savedSummaries.Count);
+        Assert.Contains(savedSummaries, s => s.UserId == _testUserId);
+        Assert.Contains(savedSummaries, s => s.UserId == otherUserId);
+
+        // Act
+        var result = (await _service.GetSummariesAsync()).ToList();
+
+        // Assert
+        Assert.Single(result);
+        var returnedSummary = result.First();
+        Assert.Equal(currentUserSummary.Id, returnedSummary.Id);
+        Assert.Equal(_testUserId, returnedSummary.UserId);
+        Assert.Equal("Current User Summary", returnedSummary.OriginalText);
+        Assert.Equal("Current User", returnedSummary.UserDisplayName);
+    }
+
+    [Fact]
+    public async Task UpdateSummaryAsync_WhenSummaryNotFound_ShouldReturnFalse()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+        var updateDto = new UpdateSummaryDto
+        {
+            OriginalText = "Updated Text",
+            SummaryText = "Updated Summary"
+        };
+
+        // Act
+        var result = await _service.UpdateSummaryAsync(nonExistentId, updateDto);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task CreateSummaryAsync_WithFailedReload_ShouldThrowException()
+    {
+        // Arrange
+        var dto = new CreateSummaryDto
+        {
+            OriginalText = "Test text",
+            SummaryText = "Test summary"
+        };
+
+        // Create a summary in the database
+        var summary = new Summary
+        {
+            Id = Guid.NewGuid(),
+            UserId = _testUserId,
+            OriginalText = dto.OriginalText,
+            SummaryText = dto.SummaryText,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Summaries.Add(summary);
+        await _context.SaveChangesAsync();
+
+        // Simulate a failed reload by removing the summary from the database
+        _context.Summaries.Remove(summary);
+        await _context.SaveChangesAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.CreateSummaryAsync(dto));
     }
 
     #region Helper Methods
