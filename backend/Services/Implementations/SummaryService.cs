@@ -82,7 +82,8 @@ namespace backend.Services.Implementations
                     DueAt = ai.DueAt.HasValue
                         ? DateTime.SpecifyKind(ai.DueAt.Value, DateTimeKind.Utc)
                         : null,
-                    IsDone = false
+                    IsDone = false,
+                    IsDateOnly = ai.IsDateOnly
                 }).ToList();
             }
 
@@ -125,7 +126,8 @@ namespace backend.Services.Implementations
                     Id = Guid.NewGuid(),
                     Text = ai.Text,
                     DueAt = ai.DueAt,
-                    IsDone = false
+                    IsDone = false,
+                    IsDateOnly = ai.IsDateOnly
                 })]
             };
 

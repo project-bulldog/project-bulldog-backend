@@ -152,7 +152,24 @@ namespace backend.Services.Implementations
             // 3.1) Run the chunked logic (in-memory only)
             var (summaryText, actionItemDtos) = await SummarizeAndExtractActionItemsChunkedAsync(request);
 
-            // 3.2) Build the Summary entity (with ActionItems)
+            // 3.2) Convert to ActionItem entities with logging
+            var actionItems = actionItemDtos.Select(dto =>
+            {
+                _logger.LogInformation(
+                    "📋 From AI DTO → Text='{Text}', DueAt={DueAt}, IsDateOnly={IsDateOnly}",
+                    dto.Text, dto.DueAt, dto.IsDateOnly);
+
+                return new ActionItem
+                {
+                    Id = Guid.NewGuid(),
+                    Text = dto.Text,
+                    DueAt = dto.DueAt,
+                    IsDone = false,
+                    IsDateOnly = dto.IsDateOnly
+                };
+            }).ToList();
+
+            // 3.3) Build the Summary entity
             var summary = new Summary
             {
                 Id = Guid.NewGuid(),
@@ -160,26 +177,26 @@ namespace backend.Services.Implementations
                 CreatedAt = DateTime.UtcNow,
                 OriginalText = request.Input,
                 SummaryText = summaryText,
-                ActionItems = [.. actionItemDtos.Select(dto => new ActionItem
-                {
-                    Id = Guid.NewGuid(),
-                    Text = dto.Text,
-                    DueAt = dto.DueAt,
-                    IsDone = false,
-                    IsDateOnly = dto.IsDateOnly
-                })]
+                ActionItems = actionItems
             };
 
-            // 3.3) Persist Summary + ActionItems
+            foreach (var item in summary.ActionItems)
+            {
+                _logger.LogInformation("📦 Ready to Save → Text='{Text}', DueAt={DueAt}, IsDateOnly={IsDateOnly}",
+                    item.Text, item.DueAt, item.IsDateOnly);
+            }
+
+            // 3.4) Persist Summary + ActionItems
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
 
-            // 3.4) Return a DTO reflecting what was saved
+            // 3.5) Return saved DTO
             return new AiSummaryResponseDto
             {
                 Summary = SummaryMapper.ToDto(summary)
             };
         }
+
         #region Private Methods
         private static List<string> ChunkByTokens(string input, GptEncoding encoder, int maxTokens)
         {

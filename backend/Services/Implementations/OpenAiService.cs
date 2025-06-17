@@ -27,7 +27,7 @@ namespace backend.Services.Implementations
             {
                 return ("Mock summary", new List<ActionItemDto>
                 {
-                    new() { Text = "Mock task 1", DueAt = DateTime.UtcNow.AddDays(1) }
+                    new() { Text = "Mock task 1", DueAt = DateTime.UtcNow.AddDays(1), IsDateOnly = true }
                 });
             }
 
@@ -35,34 +35,34 @@ namespace backend.Services.Implementations
             var chat = new ChatClient(model: model, apiKey: _apiKey);
 
             var prompt = $@"
-                You are a task extraction assistant. Read the following meeting notes and respond in JSON format.
+                    You are a task extraction assistant. Read the following meeting notes and respond in JSON format.
 
-                Your response must include:
-                - A 1–2 sentence summary
-                - A list of 3–5 tasks (action items), each with a `suggested_time`
+                    Your response must include:
+                    - A 1–2 sentence summary
+                    - A list of 3–5 action items (tasks)
 
-                💡 If a specific due date is not stated, infer it from context.
-                💡 If the text says something like 'tasks due June 20–July 1', spread the dates across the tasks.
-                💡 If no date is possible to infer, use `null`.
+                    For each task, add a `suggested_time` based on the text:
+                    - If the text says a specific date like ""June 20"" or ""by Friday"", use that
+                    - If it just implies urgency like ""next week"", infer a likely date
+                    - If no time is mentioned or it feels like an all-day task, give the date only (e.g., ""June 25, 2025"")
+                    - Do NOT invent specific times (like 5:00 PM) unless clearly stated
 
-                ⚠️ Respond ONLY in this format:
+                    Respond ONLY in this format:
 
-                {{
-                  ""summary"": ""..."",
-                  ""actionItems"": [
-                    {{ ""text"": ""Task name here"", ""suggested_time"": ""June 20, 2025"" }},
-                    {{ ""text"": ""Another task"", ""suggested_time"": null }}
-                  ]
-                }}
+                    {{
+                      ""summary"": ""..."",
+                      ""actionItems"": [
+                        {{ ""text"": ""Task name here"", ""suggested_time"": ""June 20, 2025"" }},
+                        {{ ""text"": ""Another task"", ""suggested_time"": null }}
+                      ]
+                    }}
 
-                Only respond with valid JSON. Do not include notes, explanation, or formatting errors.
+                    Only respond with valid JSON. Do not include notes, explanation, or formatting errors.
 
-                --- Start of Input ---
-                {input}
-                --- End of Input ---
-                ";
-
-
+                    --- Start of Input ---
+                    {input}
+                    --- End of Input ---
+                    ";
 
             var completion = await chat.CompleteChatAsync(prompt);
             var raw = completion.Value.Content[0].Text.ToString().Trim();
@@ -86,15 +86,19 @@ namespace backend.Services.Implementations
             }
 
             var summary = aiResponse?.Summary ?? "No summary available";
-
             var actionItems = new List<ActionItemDto>();
 
             foreach (var ai in aiResponse?.ActionItems ?? new())
             {
                 Console.WriteLine($"🔍 Raw task: {ai.Text} | Raw time: {ai.SuggestedTime}");
 
-                var dueAt = await ParseSuggestedTime(ai.SuggestedTime);
                 var isDateOnly = IsDateOnlyString(ai.SuggestedTime);
+                var dueAt = await ParseSuggestedTime(ai.SuggestedTime);
+
+                if (isDateOnly && dueAt.HasValue)
+                {
+                    dueAt = dueAt.Value.Date;
+                }
 
                 Console.WriteLine($"🗓️ Parsed time: {dueAt} | IsDateOnly: {isDateOnly}");
 
@@ -105,7 +109,6 @@ namespace backend.Services.Implementations
                     IsDateOnly = isDateOnly
                 });
             }
-
 
             foreach (var item in actionItems)
             {
@@ -130,7 +133,7 @@ namespace backend.Services.Implementations
                 """;
 
             var completion = await chat.CompleteChatAsync(prompt);
-            var raw = completion.Value.Content[0].Text.ToString().Trim();
+            var raw = completion.Value.Content[0].Text.Trim();
 
             Console.WriteLine("🧠 Raw OpenAI Response - Summary Only:");
             Console.WriteLine(raw);
@@ -143,8 +146,6 @@ namespace backend.Services.Implementations
             if (string.IsNullOrWhiteSpace(timeText) || timeText.Equals("null", StringComparison.OrdinalIgnoreCase))
                 return false;
 
-            // Check if time is clearly NOT present in string
-            // (i.e., no "at", no colon, no AM/PM, etc.)
             return !timeText.Contains(":", StringComparison.OrdinalIgnoreCase)
                    && !timeText.Contains("am", StringComparison.OrdinalIgnoreCase)
                    && !timeText.Contains("pm", StringComparison.OrdinalIgnoreCase)
@@ -196,7 +197,6 @@ namespace backend.Services.Implementations
 
             Console.WriteLine($"⚠️ Could not parse suggested time: '{timeText}'");
 
-            // Fallback to GPT resolver
             return await ResolveTimeWithGptAsync(timeText);
         }
 
@@ -207,13 +207,13 @@ namespace backend.Services.Implementations
             var chat = new ChatClient(model: _defaultModel, apiKey: _apiKey);
 
             var prompt = $"""
-        Convert this natural language time expression to an exact ISO 8601 timestamp in UTC.
-        Example: "next Friday at noon" → "2025-06-20T12:00:00Z"
+Convert this natural language time expression to an exact ISO 8601 timestamp in UTC.
+Example: "next Friday at noon" → "2025-06-20T12:00:00Z"
 
-        Respond with **only** the timestamp. If unknown or ambiguous, say "null".
+Respond with **only** the timestamp. If unknown or ambiguous, say "null".
 
-        Expression: {rawTime}
-        """;
+Expression: {rawTime}
+""";
 
             try
             {
@@ -235,6 +235,5 @@ namespace backend.Services.Implementations
                 return null;
             }
         }
-
     }
 }

@@ -15,5 +15,8 @@ namespace backend.Dtos.AiSummaries
 
         [JsonPropertyName("suggested_time")]
         public string? SuggestedTime { get; set; }
+
+        [JsonPropertyName("is_date_only")]
+        public bool? IsDateOnly { get; set; }
     }
 }
