@@ -24,8 +24,8 @@ public class UploadService : IUploadService
         _blobStorageService = blobStorageService;
         _httpClient = httpClient;
         _httpCtx = httpCtx;
-        _functionUrl = config["AzureBlobStorage:BlobProcessingFunctionUrl"]
-            ?? throw new InvalidOperationException("Missing AzureBlobStorage:BlobProcessingFunctionUrl configuration");
+        _functionUrl = config["BlobProcessingFunctionUrl"]
+            ?? throw new InvalidOperationException("Missing BlobProcessingFunctionUrl configuration");
     }
 
     public async Task<AiSummaryWithTasksResponseDto> UploadUserFileAsync(IFormFile file)
