@@ -115,8 +115,8 @@ builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
 //BlobStorage
 builder.Services.AddSingleton(x =>
 {
-    IConfiguration config = x.GetRequiredService<IConfiguration>();
-    var connectionString = config.GetSection("AzureBlobStorage")["ConnectionString"];
+    var config = x.GetRequiredService<IConfiguration>();
+    var connectionString = config.GetValue<string>("BlobConnectionString");
     return new BlobServiceClient(connectionString);
 });
 
