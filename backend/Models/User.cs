@@ -12,8 +12,10 @@ namespace backend.Models
 
         //2FA
         public string? PhoneNumber { get; set; }
+        public bool PhoneNumberVerified { get; set; } = false;
         public bool TwoFactorEnabled { get; set; }
-        public string? CurrentOtp { get; set; }         // optional: temp code
+        public string? CurrentOtp { get; set; }
+        public int OtpAttemptsLeft { get; set; } = 5;
         public DateTime? OtpExpiresAt { get; set; }
 
         public ICollection<Summary> Summaries { get; set; } = [];

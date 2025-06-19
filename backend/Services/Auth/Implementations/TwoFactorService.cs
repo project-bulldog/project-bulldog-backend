@@ -19,25 +19,30 @@ public class TwoFactorService : ITwoFactorService
     public async Task<string> GenerateAndSendOtpAsync(User user)
     {
         if (string.IsNullOrWhiteSpace(user.PhoneNumber))
-        {
             throw new InvalidOperationException("User does not have a phone number.");
-        }
 
         var code = GenerateOtpCode();
 
         user.CurrentOtp = code;
-        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(5); // 🔒 short-lived
+        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(5);
+        user.OtpAttemptsLeft = 5; // reset attempts on resend
 
         await _context.SaveChangesAsync();
 
-        // TODO: Replace this with actual SMS service
-        _logger.LogInformation("Sending 2FA code {Code} to {Phone}", code, user.PhoneNumber);
+        // TODO: Replace with actual SMS service
+        _logger.LogInformation("Sending OTP {Code} to {Phone}", code, user.PhoneNumber);
 
-        return code; // Return for debugging/testing now
+        return code; // For testing/debug only — remove in prod
     }
 
     public async Task<bool> VerifyOtpAsync(User user, string code)
     {
+        if (user.OtpAttemptsLeft <= 0)
+        {
+            _logger.LogWarning("User {UserId} exceeded OTP attempts", user.Id);
+            return false;
+        }
+
         if (string.IsNullOrWhiteSpace(user.CurrentOtp) || user.OtpExpiresAt == null)
             return false;
 
@@ -45,14 +50,19 @@ public class TwoFactorService : ITwoFactorService
             return false;
 
         if (!string.Equals(user.CurrentOtp, code, StringComparison.Ordinal))
+        {
+            user.OtpAttemptsLeft--;
+            await _context.SaveChangesAsync();
             return false;
+        }
 
-        // ✅ Passed: clear the OTP after verification
+        // ✅ Passed
         user.CurrentOtp = null;
         user.OtpExpiresAt = null;
+        user.OtpAttemptsLeft = 5;
+        user.PhoneNumberVerified = true;
 
         await _context.SaveChangesAsync();
-
         return true;
     }
 

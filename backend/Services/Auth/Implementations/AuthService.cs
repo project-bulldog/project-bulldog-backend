@@ -50,7 +50,6 @@ public class AuthService : IAuthService
         return LoginResultDto.FromAuth(auth);
     }
 
-
     public async Task<User> AuthenticateUserAsync(LoginRequestDto dto)
     {
         var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == dto.Email);
@@ -66,8 +65,13 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
-        return user;
+        if (user.PhoneNumberVerified) return user;
+
+        _logger.LogWarning("Login blocked: phone not verified for user {UserId}", user.Id);
+        throw new UnauthorizedAccessException("Please verify your phone number before logging in.");
+
     }
+
 
     public async Task<LoginResultDto> VerifyTwoFactorAsync(Guid userId, string code, HttpResponse response)
 
@@ -85,7 +89,6 @@ public class AuthService : IAuthService
         var auth = await IssueTokensAsync(user, response);
         return LoginResultDto.FromAuth(auth);
     }
-
     public async Task LogoutAllSessionsAsync(Guid userId, HttpResponse response)
     {
         await _tokenService.RevokeAllUserTokensAsync(userId, "Manual logout");

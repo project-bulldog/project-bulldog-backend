@@ -19,19 +19,22 @@ public class AuthController : ControllerBase
     private readonly IUserService _userService;
     private readonly IAuthService _authService;
     private readonly ITokenService _tokenService;
+    private readonly ITwoFactorService _twoFactorService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IUserService userService, IAuthService authService, ITokenService tokenService, ILogger<AuthController> logger)
+    public AuthController(IUserService userService, IAuthService authService, ITokenService tokenService, ILogger<AuthController> logger, ITwoFactorService twoFactorService)
     {
         _userService = userService;
         _authService = authService;
         _tokenService = tokenService;
         _logger = logger;
+        _twoFactorService = twoFactorService;
     }
 
+    // POST /api/auth/register
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterRequestDto dto)
+    public async Task<IActionResult> Register([FromBody] RegisterRequestDto dto)
     {
         try
         {
@@ -39,11 +42,25 @@ public class AuthController : ControllerBase
             {
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
-                Password = dto.Password
+                Password = dto.Password,
+                PhoneNumber = dto.PhoneNumber
             });
 
+            if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
+            {
+                var code = await _twoFactorService.GenerateAndSendOtpAsync(user); // reuse this for phone verification
+                _logger.LogInformation("Sent phone verification code to {Phone}", dto.PhoneNumber);
+
+                return Ok(new
+                {
+                    auth = (object?)null,
+                    phoneVerificationRequired = true,
+                    userId = user.Id
+                });
+            }
+
             var response = await _authService.LoginAsync(user, Response);
-            return Ok(response);
+            return Ok(new { auth = response });
         }
         catch (InvalidOperationException ex)
         {
@@ -52,6 +69,26 @@ public class AuthController : ControllerBase
         }
     }
 
+    [HttpPost("verify-phone")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneRequestDto request)
+    {
+        var user = await _userService.GetUserEntityAsync(request.UserId);
+
+        if (user == null)
+            return Unauthorized("Invalid user.");
+
+        var isValid = await _twoFactorService.VerifyOtpAsync(user, request.Code);
+        if (!isValid)
+            return Unauthorized("Invalid or expired verification code.");
+
+        _logger.LogInformation("Phone number verified for user {UserId}", user.Id);
+
+        var response = await _authService.LoginAsync(user, Response);
+        return Ok(new { auth = response });
+    }
+
+    // POST /api/auth/login
     [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<LoginResultDto>> Login([FromBody] LoginRequestDto request)
@@ -69,6 +106,7 @@ public class AuthController : ControllerBase
         }
     }
 
+    // POST /api/auth/verify-2fa
     [AllowAnonymous]
     [HttpPost("verify-2fa")]
     public async Task<ActionResult<LoginResultDto>> VerifyTwoFactor([FromBody] TwoFactorVerifyRequestDto request)
@@ -90,6 +128,7 @@ public class AuthController : ControllerBase
         }
     }
 
+    // POST /api/auth/refresh
     [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshRequestDto? request = null)
@@ -146,6 +185,7 @@ public class AuthController : ControllerBase
         }
     }
 
+    // POST /api/auth/logout
     [Authorize]
     [HttpPost("logout")]
     public async Task<IActionResult> LogoutUser()
@@ -167,6 +207,7 @@ public class AuthController : ControllerBase
         });
     }
 
+    // POST /api/auth/logout-all
     [Authorize]
     [HttpPost("logout-all")]
     public async Task<IActionResult> LogoutAllSessions()
@@ -179,6 +220,7 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Logged out of all sessions" });
     }
 
+    // GET /api/auth/me
     [Authorize]
     [HttpGet("me")]
     public async Task<ActionResult<UserDto>> GetCurrentUser()
@@ -193,4 +235,3 @@ public class AuthController : ControllerBase
         return Ok(userDto);
     }
 }
-

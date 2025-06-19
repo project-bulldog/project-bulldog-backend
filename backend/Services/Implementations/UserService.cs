@@ -32,7 +32,6 @@ namespace backend.Services.Implementations
             return [.. users.Select(UserMapper.ToDto)];
         }
 
-
         public async Task<UserDto?> GetUserAsync(Guid id)
         {
             _logger.LogInformation("Fetching user with id {Id}", id);
@@ -51,6 +50,11 @@ namespace backend.Services.Implementations
             return UserMapper.ToDto(user);
         }
 
+        public async Task<User?> GetUserEntityAsync(Guid id)
+        {
+            return await _context.Users.FindAsync(id);
+        }
+
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
@@ -60,7 +64,9 @@ namespace backend.Services.Implementations
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
-                PasswordHash = hashedPassword
+                PasswordHash = hashedPassword,
+                PhoneNumber = dto.PhoneNumber,
+                TwoFactorEnabled = dto.EnableTwoFactor
             };
 
             _context.Users.Add(user);
@@ -86,7 +92,10 @@ namespace backend.Services.Implementations
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
-                PasswordHash = hashedPassword
+                PasswordHash = hashedPassword,
+                PhoneNumber = dto.PhoneNumber,
+                TwoFactorEnabled = dto.EnableTwoFactor
+
             };
 
             _context.Users.Add(user);
@@ -95,7 +104,6 @@ namespace backend.Services.Implementations
             _logger.LogInformation("User registered successfully with id {Id}", user.Id);
             return user;
         }
-
 
         public async Task<User> ValidateUserAsync(LoginRequestDto request)
         {
@@ -161,7 +169,6 @@ namespace backend.Services.Implementations
                 throw;
             }
         }
-
 
         public async Task<bool> DeleteUserAsync(Guid id)
         {
