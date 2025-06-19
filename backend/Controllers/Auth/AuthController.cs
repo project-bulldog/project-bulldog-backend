@@ -2,6 +2,7 @@ using backend.Dtos.Auth;
 using backend.Dtos.Users;
 using backend.Extensions;
 using backend.Helpers;
+using backend.Mappers;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Backend.Dtos.Auth;
@@ -30,12 +31,18 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDto>> Register(CreateUserDto dto)
+    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterRequestDto dto)
     {
         try
         {
-            var user = await _userService.RegisterUserAsync(dto);
-            var response = await _authService.LoginAsync(user, Response); // issues tokens + sets cookie
+            var user = await _userService.RegisterUserAsync(new CreateUserDto
+            {
+                Email = dto.Email,
+                DisplayName = dto.DisplayName,
+                Password = dto.Password
+            });
+
+            var response = await _authService.LoginAsync(user, Response);
             return Ok(response);
         }
         catch (InvalidOperationException ex)
@@ -47,21 +54,41 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginRequestDto request)
+    public async Task<ActionResult<LoginResultDto>> Login([FromBody] LoginRequestDto request)
     {
         try
         {
-            var user = await _userService.ValidateUserAsync(request);
-            var response = await _authService.LoginAsync(user, Response); // issues tokens + sets cookie
-            return Ok(response);
+            var user = await _authService.AuthenticateUserAsync(request);
+            var result = await _authService.LoginAsync(user, Response);
+            return Ok(result);
         }
-        catch (InvalidOperationException ex)
+        catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Login failed: {Message}", ex.Message);
             return Unauthorized(ex.Message);
         }
     }
 
+    [AllowAnonymous]
+    [HttpPost("verify-2fa")]
+    public async Task<ActionResult<LoginResultDto>> VerifyTwoFactor([FromBody] TwoFactorVerifyRequestDto request)
+    {
+        try
+        {
+            var result = await _authService.VerifyTwoFactorAsync(request.UserId, request.Code, Response);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("2FA verification failed: {Message}", ex.Message);
+            return Unauthorized(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning("2FA verification error: {Message}", ex.Message);
+            return BadRequest(ex.Message);
+        }
+    }
 
     [AllowAnonymous]
     [HttpPost("refresh")]
@@ -69,7 +96,7 @@ public class AuthController : ControllerBase
     {
 #if DEBUG
         var rawCookieHeader = LogSanitizer.SanitizeForLog(Request.Headers.Cookie.ToString());
-        _logger.LogInformation("🍪 Incoming Cookie Header: {RawCookie}", rawCookieHeader);
+        _logger.LogInformation("Incoming Cookie Header: {RawCookie}", rawCookieHeader);
 #endif
 
         // Distinguish between iOS fallback and normal flow
@@ -80,13 +107,13 @@ public class AuthController : ControllerBase
 
 #if DEBUG
         var tokenPreview = LogSanitizer.GetSafeTokenPreview(encryptedToken);
-        _logger.LogInformation("🔐 Parsed refreshToken ends in: {Preview}", tokenPreview);
+        _logger.LogInformation("Parsed refreshToken ends in: {Preview}", tokenPreview);
         if (usedBodyFallback)
         {
             _logger.LogInformation("📱 Refresh request used fallback via body (likely iOS).");
         }
 #else
-    _logger.LogDebug("🔐 refreshToken received: {TokenPresent}",
+    _logger.LogDebug("refreshToken received: {TokenPresent}",
         LogSanitizer.FormatPresence(!string.IsNullOrWhiteSpace(encryptedToken)));
 #endif
 
@@ -106,21 +133,11 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
 
-            if (usedBodyFallback)
-            {
-                return Ok(new
-                {
-                    accessToken,
-                    refreshToken = rotatedRefreshToken // ✅ iOS needs this
-                });
-            }
-            else
-            {
-                return Ok(new
-                {
-                    accessToken // ✅ Normal browsers get only the access token
-                });
-            }
+            RefreshResultDto result = usedBodyFallback
+                ? RefreshResultDto.ForIos(accessToken, rotatedRefreshToken)
+                : RefreshResultDto.ForNormalBrowser(accessToken);
+
+            return Ok(result);
         }
         catch (SecurityTokenException ex)
         {
@@ -128,7 +145,6 @@ public class AuthController : ControllerBase
             return Unauthorized(ex.Message);
         }
     }
-
 
     [Authorize]
     [HttpPost("logout")]
@@ -161,6 +177,20 @@ public class AuthController : ControllerBase
 
         await _authService.LogoutAllSessionsAsync(userId, Response);
         return Ok(new { message = "Logged out of all sessions" });
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<ActionResult<UserDto>> GetCurrentUser()
+    {
+        var userId = User.GetUserId();
+
+        var userDto = await _userService.GetUserAsync(userId);
+
+        if (userDto == null)
+            return Unauthorized();
+
+        return Ok(userDto);
     }
 }
 

@@ -7,8 +7,14 @@ namespace backend.Models
         public Guid Id { get; set; }
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
-
+        public string PasswordHash { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        //2FA
+        public string? PhoneNumber { get; set; }
+        public bool TwoFactorEnabled { get; set; }
+        public string? CurrentOtp { get; set; }         // optional: temp code
+        public DateTime? OtpExpiresAt { get; set; }
 
         public ICollection<Summary> Summaries { get; set; } = [];
         public ICollection<RefreshToken> RefreshTokens { get; set; } = [];

@@ -91,6 +91,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ICookieService, CookieService>();
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
+builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 
 //Application Services
 builder.Services.AddHttpClient();

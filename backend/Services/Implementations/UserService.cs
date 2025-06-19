@@ -53,19 +53,20 @@ namespace backend.Services.Implementations
 
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
-                DisplayName = dto.DisplayName
+                DisplayName = dto.DisplayName,
+                PasswordHash = hashedPassword
             };
-
-            var userId = user.Id;
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("User created with id {Id}", userId);
+            _logger.LogInformation("User created with id {Id}", user.Id);
 
             return UserMapper.ToDto(user);
         }
@@ -78,11 +79,14 @@ namespace backend.Services.Implementations
                 throw new InvalidOperationException("Email already registered.");
             }
 
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
             var user = new User
             {
                 Id = Guid.NewGuid(),
                 Email = dto.Email,
-                DisplayName = dto.DisplayName
+                DisplayName = dto.DisplayName,
+                PasswordHash = hashedPassword
             };
 
             _context.Users.Add(user);
@@ -91,6 +95,7 @@ namespace backend.Services.Implementations
             _logger.LogInformation("User registered successfully with id {Id}", user.Id);
             return user;
         }
+
 
         public async Task<User> ValidateUserAsync(LoginRequestDto request)
         {
@@ -114,14 +119,28 @@ namespace backend.Services.Implementations
                 return false;
             }
 
-            if (updateDto.Email is not null)
+            if (!string.IsNullOrWhiteSpace(updateDto.Email))
             {
                 user.Email = updateDto.Email;
             }
 
-            if (updateDto.DisplayName is not null)
+            if (!string.IsNullOrWhiteSpace(updateDto.DisplayName))
             {
                 user.DisplayName = updateDto.DisplayName;
+            }
+
+            // 🔐 Password update flow (requires current password)
+            if (!string.IsNullOrWhiteSpace(updateDto.NewPassword))
+            {
+                if (string.IsNullOrWhiteSpace(updateDto.CurrentPassword) ||
+                    !BCrypt.Net.BCrypt.Verify(updateDto.CurrentPassword, user.PasswordHash))
+                {
+                    _logger.LogWarning("Password update failed: invalid current password for user {Id}", id);
+                    throw new UnauthorizedAccessException("Current password is incorrect.");
+                }
+
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateDto.NewPassword);
+                _logger.LogInformation("Password updated for user {Id}", id);
             }
 
             try
@@ -142,6 +161,7 @@ namespace backend.Services.Implementations
                 throw;
             }
         }
+
 
         public async Task<bool> DeleteUserAsync(Guid id)
         {

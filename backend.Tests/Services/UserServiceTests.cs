@@ -106,7 +106,8 @@ public class UserServiceTests : IDisposable
         var dto = new CreateUserDto
         {
             Email = "new@test.com",
-            DisplayName = "New User"
+            DisplayName = "New User",
+            Password = "password123"
         };
 
         // Act
@@ -118,6 +119,11 @@ public class UserServiceTests : IDisposable
         Assert.Equal(dto.Email, result.Email);
         Assert.Equal(dto.DisplayName, result.DisplayName);
         Assert.Empty(result.Summaries);
+
+        // Verify password was hashed
+        var createdUser = await _context.Users.FindAsync(result.Id);
+        Assert.NotNull(createdUser);
+        Assert.True(BCrypt.Net.BCrypt.Verify(dto.Password, createdUser.PasswordHash));
     }
 
     [Fact]
@@ -127,7 +133,8 @@ public class UserServiceTests : IDisposable
         var dto = new CreateUserDto
         {
             Email = "new@test.com",
-            DisplayName = "New User"
+            DisplayName = "New User",
+            Password = "password123"
         };
 
         // Act
@@ -145,6 +152,7 @@ public class UserServiceTests : IDisposable
         Assert.NotNull(createdUser);
         Assert.Equal(dto.Email, createdUser.Email);
         Assert.Equal(dto.DisplayName, createdUser.DisplayName);
+        Assert.True(BCrypt.Net.BCrypt.Verify(dto.Password, createdUser.PasswordHash));
     }
 
     [Fact]
@@ -155,7 +163,8 @@ public class UserServiceTests : IDisposable
         var dto = new CreateUserDto
         {
             Email = "existing@test.com",
-            DisplayName = "New User"
+            DisplayName = "New User",
+            Password = "password123"
         };
 
         // Act & Assert
@@ -169,7 +178,11 @@ public class UserServiceTests : IDisposable
     {
         // Arrange
         var user = await CreateTestUser("test@test.com", "Test User");
-        var request = new LoginRequestDto("test@test.com");
+        var request = new LoginRequestDto
+        {
+            Email = "test@test.com",
+            Password = "password123"
+        };
 
         // Act
         var result = await _service.ValidateUserAsync(request);
@@ -186,7 +199,11 @@ public class UserServiceTests : IDisposable
     public async Task ValidateUserAsync_WithInvalidEmail_ShouldThrowException()
     {
         // Arrange
-        var request = new LoginRequestDto("nonexistent@test.com");
+        var request = new LoginRequestDto
+        {
+            Email = "nonexistent@test.com",
+            Password = "password123"
+        };
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -253,6 +270,107 @@ public class UserServiceTests : IDisposable
         Assert.NotNull(updatedUser);
         Assert.Equal(updateDto.Email, updatedUser.Email);
         Assert.Equal("Test User", updatedUser.DisplayName); // Original display name unchanged
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithValidPasswordUpdate_ShouldUpdatePassword()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var currentPassword = "password123";
+        var newPassword = "newpassword456";
+
+        var updateDto = new UpdateUserDto
+        {
+            CurrentPassword = currentPassword,
+            NewPassword = newPassword
+        };
+
+        // Act
+        var result = await _service.UpdateUserAsync(user.Id, updateDto);
+
+        // Assert
+        Assert.True(result);
+        var updatedUser = await _context.Users.FindAsync(user.Id);
+        Assert.NotNull(updatedUser);
+        Assert.True(BCrypt.Net.BCrypt.Verify(newPassword, updatedUser.PasswordHash));
+        Assert.False(BCrypt.Net.BCrypt.Verify(currentPassword, updatedUser.PasswordHash));
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithInvalidCurrentPassword_ShouldThrowUnauthorizedAccessException()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var wrongPassword = "wrongpassword";
+        var newPassword = "newpassword456";
+
+        var updateDto = new UpdateUserDto
+        {
+            CurrentPassword = wrongPassword,
+            NewPassword = newPassword
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.UpdateUserAsync(user.Id, updateDto));
+        Assert.Equal("Current password is incorrect.", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithMissingCurrentPassword_ShouldThrowUnauthorizedAccessException()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var newPassword = "newpassword456";
+
+        var updateDto = new UpdateUserDto
+        {
+            NewPassword = newPassword
+            // CurrentPassword not provided
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.UpdateUserAsync(user.Id, updateDto));
+        Assert.Equal("Current password is incorrect.", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithEmptyCurrentPassword_ShouldThrowUnauthorizedAccessException()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var newPassword = "newpassword456";
+
+        var updateDto = new UpdateUserDto
+        {
+            CurrentPassword = "",
+            NewPassword = newPassword
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.UpdateUserAsync(user.Id, updateDto));
+        Assert.Equal("Current password is incorrect.", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_WithOnlyNewPassword_ShouldThrowUnauthorizedAccessException()
+    {
+        // Arrange
+        var user = await CreateTestUser();
+        var newPassword = "newpassword456";
+
+        var updateDto = new UpdateUserDto
+        {
+            NewPassword = newPassword
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.UpdateUserAsync(user.Id, updateDto));
+        Assert.Equal("Current password is incorrect.", exception.Message);
     }
 
     [Fact]
@@ -330,7 +448,8 @@ public class UserServiceTests : IDisposable
         {
             Id = Guid.NewGuid(),
             Email = email,
-            DisplayName = displayName
+            DisplayName = displayName,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123")
         };
         await _context.Users.AddAsync(user);
         await _context.SaveChangesAsync();
