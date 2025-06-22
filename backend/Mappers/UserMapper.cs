@@ -10,8 +10,10 @@ public static class UserMapper
         Id = user.Id,
         Email = user.Email,
         DisplayName = user.DisplayName,
+        EmailVerified = user.EmailVerified,
         TwoFactorEnabled = user.TwoFactorEnabled,
         PhoneNumber = user.PhoneNumber,
+        PhoneNumberVerified = user.PhoneNumberVerified,
         Summaries = [.. user.Summaries.Select(SummaryMapper.ToDto)]
     };
 }

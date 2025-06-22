@@ -141,7 +141,7 @@ public class AuthServiceTests
             Email = "test@example.com",
             DisplayName = "Test User",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-            PhoneNumberVerified = true
+            EmailVerified = true
         };
 
         var loginRequest = new LoginRequestDto
@@ -188,7 +188,7 @@ public class AuthServiceTests
             Email = "test@example.com",
             DisplayName = "Test User",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("correctpassword"),
-            PhoneNumberVerified = true
+            EmailVerified = true
         };
 
         var loginRequest = new LoginRequestDto
@@ -206,7 +206,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task AuthenticateUserAsync_ShouldThrowUnauthorizedAccessException_WhenPhoneNotVerified()
+    public async Task AuthenticateUserAsync_ShouldThrowUnauthorizedAccessException_WhenEmailNotVerified()
     {
         // Arrange
         var user = new User
@@ -215,7 +215,7 @@ public class AuthServiceTests
             Email = "test@example.com",
             DisplayName = "Test User",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-            PhoneNumberVerified = false
+            EmailVerified = false
         };
 
         var loginRequest = new LoginRequestDto
@@ -230,39 +230,7 @@ public class AuthServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _authService.AuthenticateUserAsync(loginRequest));
-        Assert.Equal("Please verify your phone number before logging in.", exception.Message);
-    }
-
-    [Fact]
-    public async Task AuthenticateUserAsync_ShouldReturnUser_WhenValidCredentialsAndPhoneVerified()
-    {
-        // Arrange
-        var user = new User
-        {
-            Id = Guid.NewGuid(),
-            Email = "test@example.com",
-            DisplayName = "Test User",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
-            PhoneNumberVerified = true
-        };
-
-        var loginRequest = new LoginRequestDto
-        {
-            Email = "test@example.com",
-            Password = "password123"
-        };
-
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        // Act
-        var result = await _authService.AuthenticateUserAsync(loginRequest);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(user.Id, result.Id);
-        Assert.Equal(user.Email, result.Email);
-        Assert.Equal(user.DisplayName, result.DisplayName);
+        Assert.Equal("Please verify your email address before logging in.", exception.Message);
     }
 
     [Fact]

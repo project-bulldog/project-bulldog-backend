@@ -174,6 +174,24 @@ public class UserServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RegisterUserAsync_WithExistingEmailInDifferentCase_ShouldThrowException()
+    {
+        // Arrange
+        await CreateTestUser("existing@test.com", "Existing User");
+        var dto = new CreateUserDto
+        {
+            Email = "EXISTING@test.com", // Different case
+            DisplayName = "New User",
+            Password = "password123"
+        };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.RegisterUserAsync(dto));
+        Assert.Equal("Email already registered.", exception.Message);
+    }
+
+    [Fact]
     public async Task ValidateUserAsync_WithValidEmail_ShouldReturnUser()
     {
         // Arrange
@@ -193,6 +211,25 @@ public class UserServiceTests : IDisposable
         Assert.Equal(user.Email, result.Email);
         Assert.Equal(user.DisplayName, result.DisplayName);
         Assert.NotNull(result.Summaries); // Verify we can access the navigation property
+    }
+
+    [Fact]
+    public async Task ValidateUserAsync_WithEmailInDifferentCase_ShouldReturnUser()
+    {
+        // Arrange
+        var user = await CreateTestUser("test@test.com", "Test User");
+        var request = new LoginRequestDto
+        {
+            Email = "TEST@test.com", // Different case
+            Password = "password123"
+        };
+
+        // Act
+        var result = await _service.ValidateUserAsync(request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
     }
 
     [Fact]
@@ -433,6 +470,20 @@ public class UserServiceTests : IDisposable
         Assert.Equal(summary.Id, resultSummary.Id);
         Assert.Single(resultSummary.ActionItems);
         Assert.Equal(actionItem.Id, resultSummary.ActionItems.First().Id);
+    }
+
+    [Fact]
+    public async Task GetUserByEmailAsync_WithDifferentCase_ShouldReturnUser()
+    {
+        // Arrange
+        var user = await CreateTestUser("test@test.com", "Test User");
+
+        // Act
+        var result = await _service.GetUserByEmailAsync("TEST@TEST.COM");
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
     }
 
     public void Dispose()

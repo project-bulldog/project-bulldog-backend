@@ -8,9 +8,10 @@ namespace backend.Dtos.Users
         public string Email { get; set; } = null!;
         public string DisplayName { get; set; } = null!;
 
-        // ✅ New fields
+        public bool EmailVerified { get; set; }
         public bool TwoFactorEnabled { get; set; }
         public string? PhoneNumber { get; set; }
+        public bool PhoneNumberVerified { get; set; }
 
         public List<SummaryDto> Summaries { get; set; } = new();
     }

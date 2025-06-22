@@ -1,6 +1,5 @@
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
-using backend.Enums;
 using backend.Extensions;
 using backend.Helpers;
 using backend.Services.Auth.Interfaces;
@@ -20,15 +19,23 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly ITokenService _tokenService;
     private readonly ITwoFactorService _twoFactorService;
+    private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IUserService userService, IAuthService authService, ITokenService tokenService, ILogger<AuthController> logger, ITwoFactorService twoFactorService)
+    public AuthController(
+        IUserService userService,
+        IAuthService authService,
+        ITokenService tokenService,
+        ILogger<AuthController> logger,
+        ITwoFactorService twoFactorService,
+        IEmailVerificationService emailVerificationService)
     {
         _userService = userService;
         _authService = authService;
         _tokenService = tokenService;
         _logger = logger;
         _twoFactorService = twoFactorService;
+        _emailVerificationService = emailVerificationService;
     }
 
     // POST /api/auth/register
@@ -46,22 +53,31 @@ public class AuthController : ControllerBase
                 PhoneNumber = dto.PhoneNumber
             });
 
-            if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
+            try
             {
-                var code = await _twoFactorService.GenerateAndSendOtpAsync(user); // reuse this for phone verification
-                var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(dto.PhoneNumber);
-                _logger.LogInformation("Sent phone verification code to {Phone}", sanitizedPhoneNumber);
+                // Send email verification link
+                await _emailVerificationService.GenerateAndSendVerificationEmailAsync(user);
+                _logger.LogInformation("Verification email sent for user ID {UserId}", user.Id);
 
                 return Ok(new
                 {
-                    auth = (object?)null,
-                    phoneVerificationRequired = true,
+                    message = "Registration successful! Please check your email to verify your account.",
+                    emailVerificationRequired = true,
+                    emailSent = true,
                     userId = user.Id
                 });
             }
-
-            var response = await _authService.LoginAsync(user, Response);
-            return Ok(new { auth = response });
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send verification email for user {UserId} after registration.", user.Id);
+                return Ok(new
+                {
+                    message = "Your account was created, but we had trouble sending the verification email. Please try to log in, and you will be given an option to resend it.",
+                    emailVerificationRequired = true,
+                    emailSent = false,
+                    userId = user.Id
+                });
+            }
         }
         catch (InvalidOperationException ex)
         {
@@ -83,10 +99,56 @@ public class AuthController : ControllerBase
         if (!isValid)
             return Unauthorized("Invalid or expired verification code.");
 
+        // Mark phone as verified
+        user.PhoneNumberVerified = true;
+        await _userService.UpdateUserAsync(user.Id, new UpdateUserDto { PhoneNumberVerified = true });
+
         _logger.LogInformation("Phone number verified for user {UserId}", user.Id);
+
+        return Ok(new { message = "Phone number verified successfully" });
+    }
+
+    // POST /api/auth/verify-email
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequestDto request)
+    {
+        var user = await _userService.GetUserEntityAsync(request.UserId);
+
+        if (user == null)
+            return Unauthorized("Invalid user.");
+
+        var isValid = await _twoFactorService.VerifyOtpAsync(user, request.Code);
+        if (!isValid)
+            return Unauthorized("Invalid or expired verification code.");
+
+        // Mark email as verified
+        user.EmailVerified = true;
+        await _userService.UpdateUserAsync(user.Id, new UpdateUserDto { EmailVerified = true });
+
+        _logger.LogInformation("Email verified for user {UserId}", user.Id);
 
         var response = await _authService.LoginAsync(user, Response);
         return Ok(new { auth = response });
+    }
+
+    // GET /api/auth/verify-email
+    [HttpGet("verify-email")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyEmailToken([FromQuery] string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return BadRequest("Missing verification token");
+        }
+
+        var isValid = await _emailVerificationService.VerifyEmailTokenAsync(token);
+        if (!isValid)
+        {
+            return BadRequest("Invalid or expired verification token");
+        }
+
+        return Ok(new { message = "Email verified successfully! You can now sign in to your account." });
     }
 
     // POST /api/auth/login
@@ -263,5 +325,35 @@ public class AuthController : ControllerBase
             return Unauthorized();
 
         return Ok(userDto);
+    }
+
+    // POST /api/auth/resend-verification-email
+    [AllowAnonymous]
+    [HttpPost("resend-verification-email")]
+    public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationEmailRequestDto dto)
+    {
+        var user = await _userService.GetUserByEmailAsync(dto.Email);
+        if (user == null)
+        {
+            // Don't reveal if a user exists or not for security reasons.
+            return Ok(new { message = "If an account with that email exists, a new verification link has been sent." });
+        }
+
+        if (user.EmailVerified)
+        {
+            return BadRequest("This email address has already been verified.");
+        }
+
+        try
+        {
+            await _emailVerificationService.GenerateAndSendVerificationEmailAsync(user);
+            _logger.LogInformation("Resent verification email for user {UserId}", user.Id);
+            return Ok(new { message = "A new verification link has been sent to your email address." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resend verification email for user {UserId}", user.Id);
+            return StatusCode(500, "A problem occurred while trying to send the email. Please try again later.");
+        }
     }
 }

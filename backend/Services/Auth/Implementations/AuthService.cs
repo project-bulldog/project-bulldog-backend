@@ -61,19 +61,20 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
+        if (!user.EmailVerified)
+        {
+            _logger.LogWarning("Login blocked: email not verified for user {UserId}", user.Id);
+            throw new UnauthorizedAccessException("Please verify your email address before logging in.");
+        }
+
         if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
         {
             _logger.LogWarning("Login failed: incorrect password for user {Id}", user.Id);
             throw new UnauthorizedAccessException("Invalid credentials.");
         }
 
-        if (user.PhoneNumberVerified) return user;
-
-        _logger.LogWarning("Login blocked: phone not verified for user {UserId}", user.Id);
-        throw new UnauthorizedAccessException("Please verify your phone number before logging in.");
-
+        return user;
     }
-
 
     public async Task<LoginResultDto> VerifyTwoFactorAsync(Guid userId, string code, HttpResponse response)
 
