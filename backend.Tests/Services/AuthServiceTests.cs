@@ -19,7 +19,6 @@ public class AuthServiceTests
     private readonly Mock<ITokenService> _tokenServiceMock;
     private readonly BulldogDbContext _context;
     private readonly Mock<ICookieService> _cookieServiceMock;
-    private readonly Mock<IUserService> _userServiceMock;
     private readonly Mock<ITwoFactorService> _twoFactorServiceMock;
     private readonly Mock<ILogger<AuthService>> _loggerMock;
     private readonly DefaultHttpContext _httpContext;
@@ -30,7 +29,6 @@ public class AuthServiceTests
         _jwtServiceMock = new Mock<IJwtService>();
         _tokenServiceMock = new Mock<ITokenService>();
         _cookieServiceMock = new Mock<ICookieService>();
-        _userServiceMock = new Mock<IUserService>();
         _twoFactorServiceMock = new Mock<ITwoFactorService>();
         _loggerMock = new Mock<ILogger<AuthService>>();
 

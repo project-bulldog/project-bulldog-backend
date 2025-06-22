@@ -49,7 +49,8 @@ public class AuthController : ControllerBase
             if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
             {
                 var code = await _twoFactorService.GenerateAndSendOtpAsync(user); // reuse this for phone verification
-                _logger.LogInformation("Sent phone verification code to {Phone}", dto.PhoneNumber);
+                var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(dto.PhoneNumber);
+                _logger.LogInformation("Sent phone verification code to {Phone}", sanitizedPhoneNumber);
 
                 return Ok(new
                 {
@@ -64,7 +65,7 @@ public class AuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("Registration failed: {Message}", ex.Message);
+            _logger.LogWarning("Registration failed: {Message}", LogSanitizer.SanitizeForLog(ex.Message));
             return BadRequest(ex.Message);
         }
     }
@@ -101,7 +102,7 @@ public class AuthController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning("Login failed: {Message}", ex.Message);
+            _logger.LogWarning("Login failed: {Message}", LogSanitizer.SanitizeForLog(ex.Message));
             return Unauthorized(ex.Message);
         }
     }
@@ -128,7 +129,7 @@ public class AuthController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("2FA request error: {Message}", ex.Message);
+            _logger.LogWarning("2FA request error: {Message}", LogSanitizer.SanitizeForLog(ex.Message));
             return BadRequest(ex.Message);
         }
     }
@@ -145,12 +146,12 @@ public class AuthController : ControllerBase
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning("2FA verification failed: {Message}", ex.Message);
+            _logger.LogWarning("2FA verification failed: {Message}", LogSanitizer.SanitizeForLog(ex.Message));
             return Unauthorized(ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("2FA verification error: {Message}", ex.Message);
+            _logger.LogWarning("2FA verification error: {Message}", LogSanitizer.SanitizeForLog(ex.Message));
             return BadRequest(ex.Message);
         }
     }
@@ -197,7 +198,9 @@ public class AuthController : ControllerBase
             var (accessToken, rotatedRefreshToken) = await _tokenService.ValidateAndRotateRefreshTokenAsync(
                 encryptedToken, Response, ip, agent);
 
-            _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}", ip, agent);
+            _logger.LogInformation("✅ Refresh successful for IP: {IP}, Agent: {Agent}",
+                LogSanitizer.SanitizeForLog(ip ?? "unknown"),
+                LogSanitizer.SanitizeForLog(agent));
 
             RefreshResultDto result = usedBodyFallback
                 ? RefreshResultDto.ForIos(accessToken, rotatedRefreshToken)
@@ -207,7 +210,7 @@ public class AuthController : ControllerBase
         }
         catch (SecurityTokenException ex)
         {
-            _logger.LogWarning("❌ Token validation failed: {Error}", ex.Message);
+            _logger.LogWarning("❌ Token validation failed: {Error}", LogSanitizer.SanitizeForLog(ex.Message));
             return Unauthorized(ex.Message);
         }
     }
