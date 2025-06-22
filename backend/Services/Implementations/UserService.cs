@@ -55,6 +55,11 @@ namespace backend.Services.Implementations
             return await _context.Users.FindAsync(id);
         }
 
+        public async Task<User?> GetUserByEmailAsync(string email)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+        }
+
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
@@ -79,7 +84,8 @@ namespace backend.Services.Implementations
 
         public async Task<User> RegisterUserAsync(CreateUserDto dto)
         {
-            if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+            var normalizedEmail = dto.Email.ToLower();
+            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail))
             {
                 _logger.LogWarning("Registration failed: Email {Email} already registered", LogSanitizer.SanitizeForLog(dto.Email));
                 throw new InvalidOperationException("Email already registered.");
@@ -107,7 +113,7 @@ namespace backend.Services.Implementations
 
         public async Task<User> ValidateUserAsync(LoginRequestDto request)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
             if (user == null)
             {
                 _logger.LogWarning("Login failed: User with email {Email} not found", LogSanitizer.SanitizeForLog(request.Email));
@@ -135,6 +141,16 @@ namespace backend.Services.Implementations
             if (!string.IsNullOrWhiteSpace(updateDto.DisplayName))
             {
                 user.DisplayName = updateDto.DisplayName;
+            }
+
+            if (updateDto.EmailVerified.HasValue)
+            {
+                user.EmailVerified = updateDto.EmailVerified.Value;
+            }
+
+            if (updateDto.PhoneNumberVerified.HasValue)
+            {
+                user.PhoneNumberVerified = updateDto.PhoneNumberVerified.Value;
             }
 
             // 🔐 Password update flow (requires current password)

@@ -10,6 +10,9 @@ namespace backend.Models
         public string PasswordHash { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        //Email verification
+        public bool EmailVerified { get; set; } = false;
+
         //2FA
         public string? PhoneNumber { get; set; }
         public bool PhoneNumberVerified { get; set; } = false;

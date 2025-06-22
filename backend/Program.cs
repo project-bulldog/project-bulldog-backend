@@ -103,6 +103,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ICookieService, CookieService>();
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
 builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 
 //Application Services
 builder.Services.AddHttpClient();
