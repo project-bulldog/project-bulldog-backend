@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace backend.Tests.TestHelpers;

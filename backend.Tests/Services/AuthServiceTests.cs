@@ -6,6 +6,7 @@ using backend.Models.Auth;
 using backend.Services.Auth;
 using backend.Services.Auth.Implementations;
 using backend.Services.Auth.Interfaces;
+using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,7 @@ public class AuthServiceTests
     private readonly Mock<ITokenService> _tokenServiceMock;
     private readonly BulldogDbContext _context;
     private readonly Mock<ICookieService> _cookieServiceMock;
+    private readonly Mock<ITwoFactorService> _twoFactorServiceMock;
     private readonly Mock<ILogger<AuthService>> _loggerMock;
     private readonly DefaultHttpContext _httpContext;
     private readonly AuthService _authService;
@@ -27,6 +29,7 @@ public class AuthServiceTests
         _jwtServiceMock = new Mock<IJwtService>();
         _tokenServiceMock = new Mock<ITokenService>();
         _cookieServiceMock = new Mock<ICookieService>();
+        _twoFactorServiceMock = new Mock<ITwoFactorService>();
         _loggerMock = new Mock<ILogger<AuthService>>();
 
         var options = new DbContextOptionsBuilder<BulldogDbContext>()
@@ -47,19 +50,21 @@ public class AuthServiceTests
             _cookieServiceMock.Object,
             _context,
             _loggerMock.Object,
-            httpContextAccessor.Object
+            httpContextAccessor.Object,
+            _twoFactorServiceMock.Object
         );
     }
 
     [Fact]
-    public async Task LoginAsync_ShouldReturnAuthResponseWithTokens()
+    public async Task LoginAsync_ShouldReturnAuthResponseWithTokens_WhenTwoFactorDisabled()
     {
         // Arrange
         var user = new User
         {
             Id = Guid.NewGuid(),
             Email = "test@example.com",
-            DisplayName = "Test User"
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
         };
 
         var response = _httpContext.Response;
@@ -76,11 +81,14 @@ public class AuthServiceTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedAccessToken, result.AccessToken);
-        Assert.Equal(expectedRefreshToken.Item1, result.RefreshToken); // Should return refresh token for iOS
-        Assert.Equal(user.Id, result.User.Id);
-        Assert.Equal(user.Email, result.User.Email);
-        Assert.Equal(user.DisplayName, result.User.DisplayName);
+        Assert.True(result.IsAuthenticated);
+        Assert.False(result.IsTwoFactorRequired);
+        Assert.NotNull(result.Auth);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Equal(expectedRefreshToken.Item1, result.Auth.RefreshToken); // Should return refresh token for iOS
+        Assert.Equal(user.Id, result.Auth.User.Id);
+        Assert.Equal(user.Email, result.Auth.User.Email);
+        Assert.Equal(user.DisplayName, result.Auth.User.DisplayName);
 
         var savedToken = await _context.RefreshTokens.FirstOrDefaultAsync();
         Assert.NotNull(savedToken);
@@ -88,6 +96,278 @@ public class AuthServiceTests
         Assert.Equal(expectedRefreshToken.Item2, savedToken.HashedToken);
 
         _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldReturnTwoFactorPending_WhenTwoFactorEnabled()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = true,
+            PhoneNumber = "+1234567890"
+        };
+
+        var response = _httpContext.Response;
+
+        // Act
+        var result = await _authService.LoginAsync(user, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.False(result.IsAuthenticated);
+        Assert.True(result.IsTwoFactorRequired);
+        Assert.NotNull(result.TwoFactor);
+        Assert.Equal(user.Id, result.TwoFactor.UserId);
+        Assert.Equal(user.Email, result.TwoFactor.Email);
+        Assert.Equal(user.PhoneNumber, result.TwoFactor.PhoneNumber);
+        Assert.True(result.TwoFactor.CanUseEmail);
+        Assert.True(result.TwoFactor.CanUseSms);
+
+        // Verify that GenerateAndSendOtpAsync was NOT called (it's called later when user chooses method)
+        _twoFactorServiceMock.Verify(x => x.GenerateAndSendOtpAsync(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AuthenticateUserAsync_ShouldReturnUser_WhenValidCredentials()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+            PhoneNumberVerified = true
+        };
+
+        var loginRequest = new LoginRequestDto
+        {
+            Email = "test@example.com",
+            Password = "password123"
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _authService.AuthenticateUserAsync(loginRequest);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal(user.Email, result.Email);
+        Assert.Equal(user.DisplayName, result.DisplayName);
+    }
+
+    [Fact]
+    public async Task AuthenticateUserAsync_ShouldThrowUnauthorizedAccessException_WhenUserNotFound()
+    {
+        // Arrange
+        var loginRequest = new LoginRequestDto
+        {
+            Email = "nonexistent@example.com",
+            Password = "password123"
+        };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _authService.AuthenticateUserAsync(loginRequest));
+    }
+
+    [Fact]
+    public async Task AuthenticateUserAsync_ShouldThrowUnauthorizedAccessException_WhenInvalidPassword()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("correctpassword"),
+            PhoneNumberVerified = true
+        };
+
+        var loginRequest = new LoginRequestDto
+        {
+            Email = "test@example.com",
+            Password = "wrongpassword"
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _authService.AuthenticateUserAsync(loginRequest));
+    }
+
+    [Fact]
+    public async Task AuthenticateUserAsync_ShouldThrowUnauthorizedAccessException_WhenPhoneNotVerified()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+            PhoneNumberVerified = false
+        };
+
+        var loginRequest = new LoginRequestDto
+        {
+            Email = "test@example.com",
+            Password = "password123"
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _authService.AuthenticateUserAsync(loginRequest));
+        Assert.Equal("Please verify your phone number before logging in.", exception.Message);
+    }
+
+    [Fact]
+    public async Task AuthenticateUserAsync_ShouldReturnUser_WhenValidCredentialsAndPhoneVerified()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+            PhoneNumberVerified = true
+        };
+
+        var loginRequest = new LoginRequestDto
+        {
+            Email = "test@example.com",
+            Password = "password123"
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _authService.AuthenticateUserAsync(loginRequest);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(user.Id, result.Id);
+        Assert.Equal(user.Email, result.Email);
+        Assert.Equal(user.DisplayName, result.DisplayName);
+    }
+
+    [Fact]
+    public async Task VerifyTwoFactorAsync_ShouldReturnAuthResponse_WhenValidCode()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = true
+        };
+
+        var response = _httpContext.Response;
+        var code = "123456";
+        var userId = user.Id;
+
+        var expectedAccessToken = "test.access.token";
+        var expectedRefreshToken = ("encrypted.token", "hashed.token", "plain.token");
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        _twoFactorServiceMock.Setup(x => x.VerifyOtpAsync(user, code)).ReturnsAsync(true);
+        _jwtServiceMock.Setup(x => x.GenerateToken(user)).Returns(expectedAccessToken);
+        _tokenServiceMock.Setup(x => x.GenerateRefreshToken()).Returns(expectedRefreshToken);
+        _cookieServiceMock.Setup(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()));
+
+        // Act
+        var result = await _authService.VerifyTwoFactorAsync(userId, code, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.False(result.IsTwoFactorRequired);
+        Assert.NotNull(result.Auth);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Equal(expectedRefreshToken.Item1, result.Auth.RefreshToken);
+        Assert.Equal(user.Id, result.Auth.User.Id);
+
+        _twoFactorServiceMock.Verify(x => x.VerifyOtpAsync(user, code), Times.Once);
+    }
+
+    [Fact]
+    public async Task VerifyTwoFactorAsync_ShouldThrowUnauthorizedAccessException_WhenUserNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var code = "123456";
+        var response = _httpContext.Response;
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _authService.VerifyTwoFactorAsync(userId, code, response));
+    }
+
+    [Fact]
+    public async Task VerifyTwoFactorAsync_ShouldThrowInvalidOperationException_WhenTwoFactorNotEnabled()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
+        };
+
+        var response = _httpContext.Response;
+        var code = "123456";
+        var userId = user.Id;
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        // Act & Assert
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _authService.VerifyTwoFactorAsync(userId, code, response));
+    }
+
+    [Fact]
+    public async Task VerifyTwoFactorAsync_ShouldThrowUnauthorizedAccessException_WhenInvalidCode()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = true
+        };
+
+        var response = _httpContext.Response;
+        var code = "123456";
+        var userId = user.Id;
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        _twoFactorServiceMock.Setup(x => x.VerifyOtpAsync(user, code)).ReturnsAsync(false);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            _authService.VerifyTwoFactorAsync(userId, code, response));
     }
 
     [Fact]
@@ -115,7 +395,8 @@ public class AuthServiceTests
         {
             Id = Guid.NewGuid(),
             Email = "test@example.com",
-            DisplayName = "Test User"
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
         };
 
         var response = _httpContext.Response;
@@ -133,8 +414,42 @@ public class AuthServiceTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal(expectedAccessToken, result.AccessToken);
-        Assert.Equal(expectedRefreshToken.Item1, result.RefreshToken); // Should return refresh token for iOS
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Equal(expectedRefreshToken.Item1, result.Auth.RefreshToken); // Should return refresh token for iOS
+        _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldNotReturnRefreshTokenForNonIOS()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
+        };
+
+        var response = _httpContext.Response;
+        _httpContext.Request.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+
+        var expectedAccessToken = "test.access.token";
+        var expectedRefreshToken = ("encrypted.token", "hashed.token", "plain.token");
+
+        _jwtServiceMock.Setup(x => x.GenerateToken(user)).Returns(expectedAccessToken);
+        _tokenServiceMock.Setup(x => x.GenerateRefreshToken()).Returns(expectedRefreshToken);
+        _cookieServiceMock.Setup(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()));
+
+        // Act
+        var result = await _authService.LoginAsync(user, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Null(result.Auth.RefreshToken); // Should not return refresh token for non-iOS
         _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
     }
 
@@ -166,5 +481,124 @@ public class AuthServiceTests
         Assert.Equal(expectedSessionInfo.TokenId, result.TokenId);
 
         _cookieServiceMock.Verify(x => x.ClearRefreshToken(It.IsAny<HttpResponse>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LogoutAsync_ShouldReturnNull_WhenTokenNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var encryptedToken = "test.encrypted.token";
+        var response = _httpContext.Response;
+
+        _tokenServiceMock.Setup(x => x.RevokeTokenAsync(encryptedToken, userId))
+            .ReturnsAsync((SessionMetadataDto?)null);
+        _cookieServiceMock.Setup(x => x.ClearRefreshToken(It.IsAny<HttpResponse>()));
+
+        // Act
+        var result = await _authService.LogoutAsync(userId, encryptedToken, response);
+
+        // Assert
+        Assert.Null(result);
+        _cookieServiceMock.Verify(x => x.ClearRefreshToken(It.IsAny<HttpResponse>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldHandleNullUserAgent()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
+        };
+
+        var response = _httpContext.Response;
+        _httpContext.Request.Headers.Remove("User-Agent"); // Remove user agent
+
+        var expectedAccessToken = "test.access.token";
+        var expectedRefreshToken = ("encrypted.token", "hashed.token", "plain.token");
+
+        _jwtServiceMock.Setup(x => x.GenerateToken(user)).Returns(expectedAccessToken);
+        _tokenServiceMock.Setup(x => x.GenerateRefreshToken()).Returns(expectedRefreshToken);
+        _cookieServiceMock.Setup(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()));
+
+        // Act
+        var result = await _authService.LoginAsync(user, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Null(result.Auth.RefreshToken); // Should not return refresh token when no user agent
+        _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldHandleEmptyUserAgent()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
+        };
+
+        var response = _httpContext.Response;
+        _httpContext.Request.Headers["User-Agent"] = ""; // Empty user agent
+
+        var expectedAccessToken = "test.access.token";
+        var expectedRefreshToken = ("encrypted.token", "hashed.token", "plain.token");
+
+        _jwtServiceMock.Setup(x => x.GenerateToken(user)).Returns(expectedAccessToken);
+        _tokenServiceMock.Setup(x => x.GenerateRefreshToken()).Returns(expectedRefreshToken);
+        _cookieServiceMock.Setup(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()));
+
+        // Act
+        var result = await _authService.LoginAsync(user, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Null(result.Auth.RefreshToken); // Should not return refresh token for empty user agent
+        _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldDetectIPadAsIOS()
+    {
+        // Arrange
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = "test@example.com",
+            DisplayName = "Test User",
+            TwoFactorEnabled = false
+        };
+
+        var response = _httpContext.Response;
+        _httpContext.Request.Headers["User-Agent"] = "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X)";
+
+        var expectedAccessToken = "test.access.token";
+        var expectedRefreshToken = ("encrypted.token", "hashed.token", "plain.token");
+
+        _jwtServiceMock.Setup(x => x.GenerateToken(user)).Returns(expectedAccessToken);
+        _tokenServiceMock.Setup(x => x.GenerateRefreshToken()).Returns(expectedRefreshToken);
+        _cookieServiceMock.Setup(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()));
+
+        // Act
+        var result = await _authService.LoginAsync(user, response);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.True(result.IsAuthenticated);
+        Assert.Equal(expectedAccessToken, result.Auth.AccessToken);
+        Assert.Equal(expectedRefreshToken.Item1, result.Auth.RefreshToken); // Should return refresh token for iPad
+        _cookieServiceMock.Verify(x => x.SetRefreshToken(It.IsAny<HttpResponse>(), It.IsAny<RefreshToken>()), Times.Once);
     }
 }

@@ -1,3 +1,4 @@
+using backend.Helpers;
 using backend.Services.Interfaces;
 
 namespace backend.Services.Implementations;
@@ -16,7 +17,9 @@ public class FakeNotificationService : INotificationService
     #region User Notifications
     public Task SendReminderAsync(Guid userId, string subject, string message)
     {
-        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {UserId} | Subject: {Subject} | Message: {Message}", userId, subject, message);
+        var sanitizedSubject = LogSanitizer.SanitizeForLog(subject);
+        var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {UserId} | Subject: {Subject} | Message: {Message}", userId, sanitizedSubject, sanitizedMessage);
         return Task.CompletedTask;
     }
     #endregion
@@ -32,8 +35,20 @@ public class FakeNotificationService : INotificationService
             return Task.CompletedTask;
         }
 
-        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {Email} | Subject: {Subject} | Message: {Message}", email, subject, message);
+        var sanitizedSubject = LogSanitizer.SanitizeForLog(subject);
+        var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: [REDACTED EMAIL] | Subject: {Subject} | Message: {Message}", sanitizedSubject, sanitizedMessage);
         return Task.CompletedTask;
+    }
+    #endregion
+
+    #region OTP Notifications
+    public async Task SendOtpEmailAsync(string email, string subject, string message)
+    {
+        var sanitizedSubject = LogSanitizer.SanitizeForLog(subject);
+        var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: [REDACTED] | Subject: {Subject} | Message: {Message}", sanitizedSubject, sanitizedMessage);
+        await Task.CompletedTask;
     }
     #endregion
 }

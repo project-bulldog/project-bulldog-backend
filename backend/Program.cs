@@ -1,6 +1,10 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.SimpleEmail;
 using Azure.Storage.Blobs;
 using backend.Data;
 using backend.HealthChecks;
@@ -41,7 +45,14 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 //Framework Services
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Converters.Add(
+            new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+        );
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddRouting(options =>
@@ -91,6 +102,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ICookieService, CookieService>();
 builder.Services.AddScoped<ICurrentUserProvider, CurrentUserProvider>();
+builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
 
 //Application Services
 builder.Services.AddHttpClient();
@@ -106,11 +118,29 @@ builder.Services.AddScoped<IReminderProcessor, ReminderProcessor>();
 builder.Services.AddScoped<IUploadService, UploadService>();
 builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
 
+//AWS Services
+builder.Services.AddSingleton<IAmazonSimpleEmailService>(sp =>
+{
+    var accessKey = builder.Configuration["AWS:Credentials:AccessKey"];
+    var secretKey = builder.Configuration["AWS:Credentials:SecretKey"];
+
+    if (string.IsNullOrEmpty(accessKey) || string.IsNullOrEmpty(secretKey))
+    {
+        throw new InvalidOperationException("AWS credentials not found in configuration. Ensure AWS:Credentials:AccessKey and AWS:Credentials:SecretKey are set in user secrets or environment variables.");
+    }
+
+    var config = new AmazonSimpleEmailServiceConfig { RegionEndpoint = RegionEndpoint.USEast2 };
+    var credentials = new BasicAWSCredentials(accessKey, secretKey);
+
+    return new AmazonSimpleEmailServiceClient(credentials, config);
+});
+
+
 //Background Services
 builder.Services.AddHostedService<TokenCleanupHostedService>();
 builder.Services.AddHostedService<ReminderCheckerService>();
 builder.Services.AddSingleton<ReminderServiceState>();
-builder.Services.AddSingleton<INotificationService, FakeNotificationService>();
+builder.Services.AddScoped<INotificationService, SesNotificationService>();
 
 //BlobStorage
 builder.Services.AddSingleton(x =>

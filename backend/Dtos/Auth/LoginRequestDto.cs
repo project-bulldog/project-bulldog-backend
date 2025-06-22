@@ -1,3 +1,8 @@
-namespace backend.Dtos.Auth;
-
-public record LoginRequestDto(string Email);
+namespace backend.Dtos.Auth
+{
+    public class LoginRequestDto
+    {
+        public string Email { get; set; } = null!;
+        public string Password { get; set; } = null!;
+    }
+}
