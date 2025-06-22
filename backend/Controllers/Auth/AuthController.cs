@@ -106,6 +106,33 @@ public class AuthController : ControllerBase
         }
     }
 
+    // POST /api/auth/request-2fa
+    [AllowAnonymous]
+    [HttpPost("request-2fa")]
+    public async Task<IActionResult> RequestTwoFactor([FromBody] RequestTwoFactorDto request)
+    {
+        try
+        {
+            var user = await _userService.GetUserEntityAsync(request.UserId);
+            if (user == null)
+                return Unauthorized("Invalid user.");
+
+            if (!user.TwoFactorEnabled)
+                return BadRequest("2FA is not enabled for this user.");
+
+            var code = await _twoFactorService.GenerateAndSendOtpAsync(user, request.Method);
+
+            _logger.LogInformation("2FA code sent via {Method} to user {UserId}", request.Method, user.Id);
+
+            return Ok(new { message = $"Verification code sent via {request.Method}" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("2FA request failed: {Message}", ex.Message);
+            return BadRequest(ex.Message);
+        }
+    }
+
     // POST /api/auth/verify-2fa
     [AllowAnonymous]
     [HttpPost("verify-2fa")]

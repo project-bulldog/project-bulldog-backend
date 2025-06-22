@@ -15,13 +15,12 @@ public class AuthService : IAuthService
     private readonly IJwtService _jwtService;
     private readonly ITokenService _tokenService;
     private readonly ICookieService _cookieService;
-    private readonly IUserService _userService;
     private readonly ITwoFactorService _twoFactorService;
     private readonly BulldogDbContext _context;
     private readonly ILogger<AuthService> _logger;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public AuthService(IJwtService jwtService, ITokenService tokenService, ICookieService cookieService, BulldogDbContext context, ILogger<AuthService> logger, IHttpContextAccessor httpContextAccessor, IUserService userService, ITwoFactorService twoFactorService)
+    public AuthService(IJwtService jwtService, ITokenService tokenService, ICookieService cookieService, BulldogDbContext context, ILogger<AuthService> logger, IHttpContextAccessor httpContextAccessor, ITwoFactorService twoFactorService)
     {
         _jwtService = jwtService;
         _tokenService = tokenService;
@@ -29,7 +28,6 @@ public class AuthService : IAuthService
         _context = context;
         _logger = logger;
         _httpContextAccessor = httpContextAccessor;
-        _userService = userService;
         _twoFactorService = twoFactorService;
     }
 
@@ -37,12 +35,16 @@ public class AuthService : IAuthService
     {
         if (user.TwoFactorEnabled)
         {
-            await _twoFactorService.GenerateAndSendOtpAsync(user);
-            _logger.LogInformation("2FA required: OTP sent to user {Id}", user.Id);
+            // Don't send OTP immediately, let user choose method
+            _logger.LogInformation("2FA required for user {Id}", user.Id);
 
             return LoginResultDto.FromTwoFactor(new TwoFactorPendingDto
             {
-                UserId = user.Id
+                UserId = user.Id,
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber ?? "",
+                CanUseEmail = true,
+                CanUseSms = !string.IsNullOrWhiteSpace(user.PhoneNumber)
             });
         }
 

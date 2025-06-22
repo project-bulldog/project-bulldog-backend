@@ -49,7 +49,6 @@ public class UploadService : IUploadService
         res.EnsureSuccessStatusCode();
 
         // 4) parse and return summary+tasks
-        return await res.Content.ReadFromJsonAsync<AiSummaryWithTasksResponseDto>()
-               ?? throw new InvalidOperationException("Empty response from function");
+        return await res.Content.ReadFromJsonAsync<AiSummaryWithTasksResponseDto>() ?? throw new InvalidOperationException("Empty response from function");
     }
 }
