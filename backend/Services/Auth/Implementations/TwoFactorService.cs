@@ -2,6 +2,7 @@ using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using backend.Data;
 using backend.Enums;
+using backend.Helpers;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
 using Twilio;
@@ -75,18 +76,21 @@ namespace backend.Services.Auth.Implementations
                 sent = await SendOtpSmsAsync(user.PhoneNumber, code);
                 if (sent)
                 {
-                    _logger.LogInformation("OTP sent via SMS to {PhoneNumber}", user.PhoneNumber);
+                    var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(user.PhoneNumber);
+                    _logger.LogInformation("OTP sent via SMS to {PhoneNumber}", sanitizedPhoneNumber);
                 }
                 else
                 {
-                    _logger.LogWarning("SMS failed for {PhoneNumber}, trying email fallback", user.PhoneNumber);
+                    var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(user.PhoneNumber);
+                    _logger.LogWarning("SMS failed for {PhoneNumber}, trying email fallback", sanitizedPhoneNumber);
                 }
             }
 
             if (!sent && (method == OtpDeliveryMethod.Email || (method == OtpDeliveryMethod.Sms && !sent)))
             {
                 await SendOtpEmailAsync(user.Email, code);
-                _logger.LogInformation("OTP sent via email to {Email}", user.Email);
+                var sanitizedEmail = LogSanitizer.SanitizeForLog(user.Email);
+                _logger.LogInformation("OTP sent via email to {Email}", sanitizedEmail);
                 sent = true;
             }
 
@@ -151,13 +155,16 @@ namespace backend.Services.Auth.Implementations
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send SMS to {PhoneNumber}", phoneNumber);
+                    var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(phoneNumber);
+                    _logger.LogError(ex, "Failed to send SMS to {PhoneNumber}", sanitizedPhoneNumber);
                     return false;
                 }
             }
             else
             {
-                _logger.LogInformation("📱 [FAKE SMS] To: {PhoneNumber} | Message: {Message}", phoneNumber, message);
+                var sanitizedPhoneNumber = LogSanitizer.SanitizeForLog(phoneNumber);
+                var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
+                _logger.LogInformation("📱 [FAKE SMS] To: {PhoneNumber} | Message: {Message}", sanitizedPhoneNumber, sanitizedMessage);
                 await Task.Delay(100);
                 return true;
             }
@@ -197,7 +204,8 @@ namespace backend.Services.Auth.Implementations
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "AWS SES failed to send OTP email to {Email}", email);
+                var sanitizedEmail = LogSanitizer.SanitizeForLog(email);
+                _logger.LogError(ex, "AWS SES failed to send OTP email to {Email}", sanitizedEmail);
                 throw;
             }
         }

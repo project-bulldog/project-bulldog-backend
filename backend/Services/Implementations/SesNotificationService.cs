@@ -1,6 +1,7 @@
 using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using backend.Data;
+using backend.Helpers;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -74,7 +75,8 @@ public class SesNotificationService : INotificationService
         };
 
         var response = await _ses.SendEmailAsync(sendRequest);
-        _logger.LogInformation("✅ Email sent to {To} | SES MessageId: {MessageId}", toEmail, response.MessageId);
+        var sanitizedToEmail = LogSanitizer.SanitizeForLog(toEmail);
+        _logger.LogInformation("✅ Email sent to {To} | SES MessageId: {MessageId}", sanitizedToEmail, response.MessageId);
     }
 
     private async Task<string?> GetEmailByUserIdAsync(Guid userId)
