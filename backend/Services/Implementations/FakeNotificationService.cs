@@ -36,4 +36,12 @@ public class FakeNotificationService : INotificationService
         return Task.CompletedTask;
     }
     #endregion
+
+    #region OTP Notifications
+    public async Task SendOtpEmailAsync(string email, string subject, string message)
+    {
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {Email} | Subject: {Subject} | Message: {Message}", email, subject, message);
+        await Task.CompletedTask;
+    }
+    #endregion
 }

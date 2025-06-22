@@ -1,205 +1,211 @@
+using Amazon.SimpleEmail;
+using Amazon.SimpleEmail.Model;
 using backend.Data;
+using backend.Enums;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
 
-namespace backend.Services.Auth.Implementations;
-
-public class TwoFactorService : ITwoFactorService
+namespace backend.Services.Auth.Implementations
 {
-    private readonly BulldogDbContext _context;
-    private readonly ILogger<TwoFactorService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly string _accountSid;
-    private readonly string _authToken;
-    private readonly string _fromNumber;
-    private readonly bool _useTwilio;
-
-    public TwoFactorService(BulldogDbContext context, ILogger<TwoFactorService> logger, IConfiguration configuration)
+    public class TwoFactorService : ITwoFactorService
     {
-        _context = context;
-        _logger = logger;
-        _configuration = configuration;
+        private readonly BulldogDbContext _context;
+        private readonly ILogger<TwoFactorService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly IAmazonSimpleEmailService _sesService;
+        private readonly string _accountSid;
+        private readonly string _authToken;
+        private readonly string _fromNumber;
+        private readonly bool _useTwilio;
 
-        _accountSid = _configuration["Twilio:AccountSid"] ?? "";
-        _authToken = _configuration["Twilio:AuthToken"] ?? "";
-        _fromNumber = _configuration["Twilio:FromNumber"] ?? "";
-
-        // Debug logging to see what's configured
-        _logger.LogInformation("Twilio Configuration Check:");
-        _logger.LogInformation("AccountSid: {AccountSidPresent}", !string.IsNullOrEmpty(_accountSid) ? "Present" : "Missing");
-        _logger.LogInformation("AuthToken: {AuthTokenPresent}", !string.IsNullOrEmpty(_authToken) ? "Present" : "Missing");
-        _logger.LogInformation("FromNumber: {FromNumberPresent}", !string.IsNullOrEmpty(_fromNumber) ? "Present" : "Missing");
-
-        _useTwilio = !string.IsNullOrEmpty(_accountSid) &&
-                     _accountSid != "your_twilio_account_sid_here" &&
-                     !string.IsNullOrEmpty(_authToken) &&
-                     !string.IsNullOrEmpty(_fromNumber);
-
-        _logger.LogInformation("Use Twilio: {UseTwilio}", _useTwilio);
-
-        if (_useTwilio)
+        public TwoFactorService(
+            BulldogDbContext context,
+            ILogger<TwoFactorService> logger,
+            IConfiguration configuration,
+            IAmazonSimpleEmailService sesService)
         {
-            TwilioClient.Init(_accountSid, _authToken);
-            _logger.LogInformation("Twilio SMS service initialized");
-        }
-        else
-        {
-            _logger.LogInformation("Using fake SMS service for development");
-        }
-    }
+            _context = context;
+            _logger = logger;
+            _configuration = configuration;
+            _sesService = sesService;
 
-    public async Task<string> GenerateAndSendOtpAsync(User user)
-    {
-        // Default to SMS if available, otherwise email
-        var method = !string.IsNullOrWhiteSpace(user.PhoneNumber) ? "sms" : "email";
-        return await GenerateAndSendOtpAsync(user, method);
-    }
+            _accountSid = _configuration["Twilio:AccountSid"] ?? "";
+            _authToken = _configuration["Twilio:AuthToken"] ?? "";
+            _fromNumber = _configuration["Twilio:FromNumber"] ?? "";
 
-    public async Task<string> GenerateAndSendOtpAsync(User user, string method)
-    {
-        var code = GenerateOtpCode();
+            _useTwilio = !string.IsNullOrEmpty(_accountSid) &&
+                         _accountSid != "your_twilio_account_sid_here" &&
+                         !string.IsNullOrEmpty(_authToken) &&
+                         !string.IsNullOrEmpty(_fromNumber);
 
-        user.CurrentOtp = code;
-        user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(5);
-        user.OtpAttemptsLeft = 5; // reset attempts on resend
-
-        await _context.SaveChangesAsync();
-
-        bool sent = false;
-
-        if (method.ToLower() == "sms" && !string.IsNullOrWhiteSpace(user.PhoneNumber))
-        {
-            sent = await SendOtpAsync(user.PhoneNumber, code);
-            if (sent)
+            if (_useTwilio)
             {
-                _logger.LogInformation("OTP sent successfully via SMS to {PhoneNumber}", user.PhoneNumber);
+                TwilioClient.Init(_accountSid, _authToken);
+                _logger.LogInformation("Twilio SMS service initialized");
             }
             else
             {
-                _logger.LogWarning("SMS failed for {PhoneNumber}, trying email fallback", user.PhoneNumber);
+                _logger.LogInformation("Using fake SMS service for development");
             }
         }
 
-        if (!sent && method.ToLower() == "email" || (method.ToLower() == "sms" && !sent))
+        public async Task<string> GenerateAndSendOtpAsync(User user)
         {
-            sent = await SendOtpEmailAsync(user.Email, code);
-            if (sent)
-            {
-                _logger.LogInformation("OTP sent via email to {Email}", user.Email);
-            }
+            var method = !string.IsNullOrWhiteSpace(user.PhoneNumber) ? OtpDeliveryMethod.Sms : OtpDeliveryMethod.Email;
+            return await GenerateAndSendOtpAsync(user, method);
         }
 
-        if (!sent)
+        public async Task<string> GenerateAndSendOtpAsync(User user, OtpDeliveryMethod method)
         {
-            _logger.LogError("Failed to send OTP via any method for user {UserId}", user.Id);
-            throw new InvalidOperationException("Failed to send verification code. Please try again.");
-        }
+            var code = GenerateOtpCode();
 
-        return code; // For testing/debug only — remove in prod
-    }
+            user.CurrentOtp = code;
+            user.OtpExpiresAt = DateTime.UtcNow.AddMinutes(5);
+            user.OtpAttemptsLeft = 5;
 
-    public async Task<bool> VerifyOtpAsync(User user, string code)
-    {
-        if (user.OtpAttemptsLeft <= 0)
-        {
-            _logger.LogWarning("User {UserId} exceeded OTP attempts", user.Id);
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(user.CurrentOtp) || user.OtpExpiresAt == null)
-            return false;
-
-        if (DateTime.UtcNow > user.OtpExpiresAt.Value)
-            return false;
-
-        if (!string.Equals(user.CurrentOtp, code, StringComparison.Ordinal))
-        {
-            user.OtpAttemptsLeft--;
             await _context.SaveChangesAsync();
-            return false;
+
+            bool sent = false;
+
+            if (method == OtpDeliveryMethod.Sms && !string.IsNullOrWhiteSpace(user.PhoneNumber))
+            {
+                sent = await SendOtpSmsAsync(user.PhoneNumber, code);
+                if (sent)
+                {
+                    _logger.LogInformation("OTP sent via SMS to {PhoneNumber}", user.PhoneNumber);
+                }
+                else
+                {
+                    _logger.LogWarning("SMS failed for {PhoneNumber}, trying email fallback", user.PhoneNumber);
+                }
+            }
+
+            if (!sent && (method == OtpDeliveryMethod.Email || (method == OtpDeliveryMethod.Sms && !sent)))
+            {
+                await SendOtpEmailAsync(user.Email, code);
+                _logger.LogInformation("OTP sent via email to {Email}", user.Email);
+                sent = true;
+            }
+
+            if (!sent)
+            {
+                _logger.LogError("Failed to send OTP via any method for user {UserId}", user.Id);
+                throw new InvalidOperationException("Failed to send verification code via SMS or Email.");
+            }
+
+            return code;
         }
 
-        // ✅ Passed
-        user.CurrentOtp = null;
-        user.OtpExpiresAt = null;
-        user.OtpAttemptsLeft = 5;
-        user.PhoneNumberVerified = true;
-
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    public async Task<bool> SendSmsAsync(string phoneNumber, string message)
-    {
-        if (_useTwilio)
+        public async Task<bool> VerifyOtpAsync(User user, string code)
         {
-            try
+            if (user.OtpAttemptsLeft <= 0)
             {
-                _logger.LogInformation("Sending SMS to {PhoneNumber}", phoneNumber);
+                _logger.LogWarning("User {UserId} exceeded OTP attempts", user.Id);
+                return false;
+            }
 
-                var messageResource = await MessageResource.CreateAsync(
-                    body: message,
-                    from: new PhoneNumber(_fromNumber),
-                    to: new PhoneNumber(phoneNumber)
-                );
+            if (string.IsNullOrWhiteSpace(user.CurrentOtp) || user.OtpExpiresAt == null)
+                return false;
 
-                _logger.LogInformation("SMS sent successfully. SID: {MessageSid}, Status: {Status}",
-                    messageResource.Sid, messageResource.Status);
+            if (DateTime.UtcNow > user.OtpExpiresAt.Value)
+                return false;
 
-                // Check if the message was actually delivered or blocked
-                if (messageResource.Status == MessageResource.StatusEnum.Failed ||
-                    messageResource.Status == MessageResource.StatusEnum.Undelivered)
+            if (!string.Equals(user.CurrentOtp, code, StringComparison.Ordinal))
+            {
+                user.OtpAttemptsLeft--;
+                await _context.SaveChangesAsync();
+                return false;
+            }
+
+            //Passed
+            user.CurrentOtp = null;
+            user.OtpExpiresAt = null;
+            user.OtpAttemptsLeft = 5;
+            user.PhoneNumberVerified = true;
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        private async Task<bool> SendSmsAsync(string phoneNumber, string message)
+        {
+            if (_useTwilio)
+            {
+                try
                 {
-                    _logger.LogWarning("SMS delivery failed. Status: {Status}, Error: {ErrorCode}",
-                        messageResource.Status, messageResource.ErrorCode);
+                    var messageResource = await MessageResource.CreateAsync(
+                        body: message,
+                        from: new PhoneNumber(_fromNumber),
+                        to: new PhoneNumber(phoneNumber)
+                    );
+
+                    if (messageResource.Status == MessageResource.StatusEnum.Failed ||
+                        messageResource.Status == MessageResource.StatusEnum.Undelivered)
+                    {
+                        return false;
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send SMS to {PhoneNumber}", phoneNumber);
                     return false;
                 }
-
-                // For trial accounts, even "sent" status might mean blocked
-                // We'll assume it's successful for now, but log the status
-                if (messageResource.Status == MessageResource.StatusEnum.Sent)
-                {
-                    _logger.LogInformation("SMS appears to be sent successfully");
-                }
-
+            }
+            else
+            {
+                _logger.LogInformation("📱 [FAKE SMS] To: {PhoneNumber} | Message: {Message}", phoneNumber, message);
+                await Task.Delay(100);
                 return true;
+            }
+        }
+
+        private async Task<bool> SendOtpSmsAsync(string phoneNumber, string otpCode)
+        {
+            var message = $"Your verification code is: {otpCode}. This code will expire in 5 minutes.";
+            return await SendSmsAsync(phoneNumber, message);
+        }
+
+        private async Task SendOtpEmailAsync(string email, string otpCode)
+        {
+            var fromEmail = _configuration["AWS:FromEmail"];
+            if (string.IsNullOrEmpty(fromEmail))
+            {
+                throw new InvalidOperationException("AWS:FromEmail is not configured.");
+            }
+
+            var subject = "Your Bulldog Verification Code";
+            var body = $"Your verification code is: {otpCode}. This code will expire in 5 minutes.";
+
+            var request = new SendEmailRequest
+            {
+                Source = fromEmail,
+                Destination = new Destination { ToAddresses = [email] },
+                Message = new Message
+                {
+                    Subject = new Content(subject),
+                    Body = new Body { Text = new Content(body) }
+                }
+            };
+
+            try
+            {
+                await _sesService.SendEmailAsync(request);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send SMS to {PhoneNumber}", phoneNumber);
-                return false;
+                _logger.LogError(ex, "AWS SES failed to send OTP email to {Email}", email);
+                throw;
             }
         }
-        else
+
+        private string GenerateOtpCode()
         {
-            // Fake SMS service for development
-            _logger.LogInformation("📱 [FAKE SMS] To: {PhoneNumber} | Message: {Message}", phoneNumber, message);
-            await Task.Delay(100); // Simulate network delay
-            return true;
+            var rng = new Random();
+            return rng.Next(100000, 999999).ToString();
         }
     }
-
-    public async Task<bool> SendOtpAsync(string phoneNumber, string otpCode)
-    {
-        var message = $"Your verification code is: {otpCode}. This code will expire in 5 minutes.";
-        return await SendSmsAsync(phoneNumber, message);
-    }
-
-    public async Task<bool> SendOtpEmailAsync(string email, string otpCode)
-    {
-        // For development, just log the email
-        _logger.LogInformation("📧 [FAKE EMAIL] To: {Email} | OTP Code: {OtpCode}", email, otpCode);
-        await Task.Delay(100); // Simulate network delay
-        return true;
-    }
-
-    private string GenerateOtpCode()
-    {
-        var rng = new Random();
-        return rng.Next(100000, 999999).ToString();
-    }
 }
-

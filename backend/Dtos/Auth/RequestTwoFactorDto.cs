@@ -1,7 +1,13 @@
-namespace backend.Dtos.Auth;
+using System.Text.Json.Serialization;
+using backend.Enums;
 
-public class RequestTwoFactorDto
+namespace backend.Dtos.Auth
 {
-    public Guid UserId { get; set; }
-    public string Method { get; set; } = "sms"; // "sms" or "email"
+    public class RequestTwoFactorDto
+    {
+        public Guid UserId { get; set; }
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
+        public OtpDeliveryMethod Method { get; set; } = OtpDeliveryMethod.Sms;
+    }
 }

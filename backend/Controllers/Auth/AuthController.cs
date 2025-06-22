@@ -1,8 +1,8 @@
 using backend.Dtos.Auth;
 using backend.Dtos.Users;
+using backend.Enums;
 using backend.Extensions;
 using backend.Helpers;
-using backend.Mappers;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Backend.Dtos.Auth;
@@ -126,9 +126,9 @@ public class AuthController : ControllerBase
 
             return Ok(new { message = $"Verification code sent via {request.Method}" });
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("2FA request failed: {Message}", ex.Message);
+            _logger.LogWarning("2FA request error: {Message}", ex.Message);
             return BadRequest(ex.Message);
         }
     }
