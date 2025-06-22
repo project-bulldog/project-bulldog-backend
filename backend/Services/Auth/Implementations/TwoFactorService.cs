@@ -89,8 +89,7 @@ namespace backend.Services.Auth.Implementations
             if (!sent && (method == OtpDeliveryMethod.Email || (method == OtpDeliveryMethod.Sms && !sent)))
             {
                 await SendOtpEmailAsync(user.Email, code);
-                var sanitizedEmail = LogSanitizer.SanitizeForLog(user.Email);
-                _logger.LogInformation("OTP sent via email to {Email}", sanitizedEmail);
+                _logger.LogInformation("OTP sent via email.");
                 sent = true;
             }
 
@@ -204,8 +203,7 @@ namespace backend.Services.Auth.Implementations
             }
             catch (Exception ex)
             {
-                var sanitizedEmail = LogSanitizer.SanitizeForLog(email);
-                _logger.LogError(ex, "AWS SES failed to send OTP email to {Email}", sanitizedEmail);
+                _logger.LogError(ex, "AWS SES failed to send OTP email to [REDACTED]");
                 throw;
             }
         }

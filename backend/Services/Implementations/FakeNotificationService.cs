@@ -35,10 +35,9 @@ public class FakeNotificationService : INotificationService
             return Task.CompletedTask;
         }
 
-        var sanitizedEmail = LogSanitizer.SanitizeForLog(email);
         var sanitizedSubject = LogSanitizer.SanitizeForLog(subject);
         var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
-        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {Email} | Subject: {Subject} | Message: {Message}", sanitizedEmail, sanitizedSubject, sanitizedMessage);
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: [REDACTED EMAIL] | Subject: {Subject} | Message: {Message}", sanitizedSubject, sanitizedMessage);
         return Task.CompletedTask;
     }
     #endregion
@@ -46,10 +45,9 @@ public class FakeNotificationService : INotificationService
     #region OTP Notifications
     public async Task SendOtpEmailAsync(string email, string subject, string message)
     {
-        var sanitizedEmail = LogSanitizer.SanitizeForLog(email);
         var sanitizedSubject = LogSanitizer.SanitizeForLog(subject);
         var sanitizedMessage = LogSanitizer.SanitizeForLog(message);
-        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: {Email} | Subject: {Subject} | Message: {Message}", sanitizedEmail, sanitizedSubject, sanitizedMessage);
+        _logger.LogInformation("📨 [FAKE NOTIFICATION] To: [REDACTED] | Subject: {Subject} | Message: {Message}", sanitizedSubject, sanitizedMessage);
         await Task.CompletedTask;
     }
     #endregion

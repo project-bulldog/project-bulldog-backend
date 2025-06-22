@@ -75,8 +75,7 @@ public class SesNotificationService : INotificationService
         };
 
         var response = await _ses.SendEmailAsync(sendRequest);
-        var sanitizedToEmail = LogSanitizer.SanitizeForLog(toEmail);
-        _logger.LogInformation("✅ Email sent to {To} | SES MessageId: {MessageId}", sanitizedToEmail, response.MessageId);
+        _logger.LogInformation("✅ Email successfully sent | SES MessageId: {MessageId}", response.MessageId);
     }
 
     private async Task<string?> GetEmailByUserIdAsync(Guid userId)
