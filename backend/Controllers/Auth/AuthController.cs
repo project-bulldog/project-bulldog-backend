@@ -57,8 +57,7 @@ public class AuthController : ControllerBase
             {
                 // Send email verification link
                 await _emailVerificationService.GenerateAndSendVerificationEmailAsync(user);
-                var sanitizedEmail = LogSanitizer.SanitizeForLog(dto.Email);
-                _logger.LogInformation("Verification email sent to {Email}", sanitizedEmail);
+                _logger.LogInformation("Verification email sent for user ID {UserId}", user.Id);
 
                 return Ok(new
                 {
