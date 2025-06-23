@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 namespace backend.Models
 {
     public class ActionItem
@@ -10,6 +8,9 @@ namespace backend.Models
         public bool IsDone { get; set; } = false;
         public DateTime? DueAt { get; set; }
         public bool IsDateOnly { get; set; } = false;
+
+        public bool ShouldRemind { get; set; } = true;
+        public int? ReminderMinutesBeforeDue { get; set; }
 
         public Summary? Summary { get; set; }
     }

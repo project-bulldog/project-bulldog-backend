@@ -8,4 +8,7 @@ public class ActionItemDto
     public DateTime? DueAt { get; set; }
     public bool IsDateOnly { get; set; }
     public Guid SummaryId { get; set; }
+
+    public bool ShouldRemind { get; set; }
+    public int? ReminderMinutesBeforeDue { get; set; }
 }

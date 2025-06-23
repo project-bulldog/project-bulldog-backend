@@ -14,7 +14,9 @@ public static class ActionItemMapper
             IsDone = item.IsDone,
             DueAt = item.DueAt,
             IsDateOnly = item.IsDateOnly,
-            SummaryId = item.SummaryId
+            SummaryId = item.SummaryId,
+            ShouldRemind = item.ShouldRemind,
+            ReminderMinutesBeforeDue = item.ReminderMinutesBeforeDue
         };
     }
 
