@@ -140,6 +140,7 @@ builder.Services.AddSingleton<IAmazonSimpleEmailService>(sp =>
 //Background Services
 builder.Services.AddHostedService<TokenCleanupHostedService>();
 builder.Services.AddHostedService<ReminderCheckerService>();
+builder.Services.AddHostedService<DstReminderAdjustmentService>();
 builder.Services.AddSingleton<ReminderServiceState>();
 builder.Services.AddScoped<INotificationService, SesNotificationService>();
 

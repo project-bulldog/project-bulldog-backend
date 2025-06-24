@@ -333,7 +333,8 @@ public class SummaryServiceTests : IDisposable
             UserId = _testUserId,
             OriginalText = "Current User Summary",
             SummaryText = "Summary",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow,
             User = currentUser
         };
 
@@ -343,7 +344,8 @@ public class SummaryServiceTests : IDisposable
             UserId = otherUserId,
             OriginalText = "Other User Summary",
             SummaryText = "Summary",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow,
             User = otherUser
         };
 
@@ -407,7 +409,8 @@ public class SummaryServiceTests : IDisposable
             UserId = _testUserId,
             OriginalText = dto.OriginalText,
             SummaryText = dto.SummaryText,
-            CreatedAt = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
         };
 
         _context.Summaries.Add(summary);

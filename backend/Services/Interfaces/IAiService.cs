@@ -5,7 +5,7 @@ namespace backend.Services.Interfaces;
 public interface IAiService
 {
     // Summarize short or mid-sized input (e.g. emails, notes)
-    Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request);
+    Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request, string? userTimeZoneId = null);
 
     // Summarize long-form text (with chunking + optional map-reduce)
     Task<string> SummarizeChunkedAsync(AiChunkedSummaryResponseDto request);

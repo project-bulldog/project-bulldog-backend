@@ -13,7 +13,7 @@ public static class SummaryMapper
             Id = summary.Id,
             OriginalText = summary.OriginalText,
             SummaryText = summary.SummaryText,
-            CreatedAt = summary.CreatedAt,
+            CreatedAt = summary.CreatedAtUtc,
             UserId = summary.UserId,
             UserDisplayName = summary.User?.DisplayName ?? "[Unknown]",
             ActionItems = ActionItemMapper.ToDtoList(summary.ActionItems)

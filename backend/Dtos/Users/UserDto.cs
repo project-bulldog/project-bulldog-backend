@@ -12,6 +12,7 @@ namespace backend.Dtos.Users
         public bool TwoFactorEnabled { get; set; }
         public string? PhoneNumber { get; set; }
         public bool PhoneNumberVerified { get; set; }
+        public string? TimeZoneId { get; set; }
 
         public List<SummaryDto> Summaries { get; set; } = new();
     }

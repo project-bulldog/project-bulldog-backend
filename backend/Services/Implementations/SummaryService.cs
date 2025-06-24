@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.Dtos.AiSummaries;
 using backend.Dtos.Summaries;
+using backend.Helpers;
 using backend.Mappers;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
@@ -64,17 +65,22 @@ namespace backend.Services.Implementations
         {
             _logger.LogInformation("Creating a new summary for user {UserId}", CurrentUserId);
 
+            var user = await _context.Users.FindAsync(CurrentUserId);
+            var utcNow = DateTime.UtcNow;
+            var localNow = TimeZoneHelpers.ConvertToLocal(utcNow, user?.TimeZoneId);
+
             var summary = new Summary
             {
                 OriginalText = dto.OriginalText,
                 SummaryText = dto.SummaryText,
                 UserId = CurrentUserId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = localNow
             };
 
             if (dto.ActionItems is { Count: > 0 })
             {
-                summary.ActionItems = dto.ActionItems.Select(ai => new ActionItem
+                summary.ActionItems = [.. dto.ActionItems.Select(ai => new ActionItem
                 {
                     Id = Guid.NewGuid(),
                     Text = ai.Text,
@@ -85,16 +91,15 @@ namespace backend.Services.Implementations
                     IsDateOnly = ai.IsDateOnly,
                     ShouldRemind = ai.ShouldRemind,
                     ReminderMinutesBeforeDue = ai.ReminderMinutesBeforeDue
-                }).ToList();
+                })];
             }
 
             _context.Summaries.Add(summary);
-            await _context.SaveChangesAsync(); // This ensures ActionItem IDs exist
+            await _context.SaveChangesAsync();
 
-            // 🔔 Create reminders for each ActionItem with DueAt and ShouldRemind == true
             foreach (var actionItem in summary.ActionItems.Where(ai => ai is { DueAt: not null, ShouldRemind: true }))
             {
-                var offset = actionItem.ReminderMinutesBeforeDue ?? 60; // Default 60 mins before
+                var offset = actionItem.ReminderMinutesBeforeDue ?? 60;
                 var reminderTime = actionItem.DueAt.Value.AddMinutes(-offset);
 
                 var reminder = new Reminder
@@ -104,7 +109,8 @@ namespace backend.Services.Implementations
                     ActionItemId = actionItem.Id,
                     ReminderTime = reminderTime,
                     Message = $"Reminder: {actionItem.Text}",
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAtUtc = utcNow,
+                    CreatedAtLocal = localNow,
                     MaxSendAttempts = 3,
                     IsSent = false
                 };
@@ -112,9 +118,8 @@ namespace backend.Services.Implementations
                 _context.Reminders.Add(reminder);
             }
 
-            await _context.SaveChangesAsync(); // Save reminders
+            await _context.SaveChangesAsync();
 
-            // Load the full summary with related data
             var loaded = await _context.Summaries
                 .AsNoTracking()
                 .Include(s => s.User)
@@ -132,10 +137,13 @@ namespace backend.Services.Implementations
             return SummaryMapper.ToDto(loaded);
         }
 
-
         public async Task<SummaryDto> GenerateChunkedSummaryWithActionItemsAsync(string input, bool useMapReduce = true, string? modelOverride = null)
         {
             _logger.LogInformation("Generating AI summary with action items for user {UserId}", CurrentUserId);
+
+            var user = await _context.Users.FindAsync(CurrentUserId);
+            var utcNow = DateTime.UtcNow;
+            var localNow = TimeZoneHelpers.ConvertToLocal(utcNow, user?.TimeZoneId);
 
             var request = new AiChunkedSummaryResponseDto(input, CurrentUserId, useMapReduce, modelOverride);
             var (summaryText, actionItems) = await _aiService.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -145,7 +153,8 @@ namespace backend.Services.Implementations
                 OriginalText = input,
                 SummaryText = summaryText,
                 UserId = CurrentUserId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = localNow,
                 ActionItems = [.. actionItems.Select(ai => new ActionItem
                 {
                     Id = Guid.NewGuid(),
@@ -156,7 +165,7 @@ namespace backend.Services.Implementations
                 })]
             };
 
-            _context.Summaries.Add(summary); // This will also track the attached action items
+            _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
 
             _logger.LogInformation("Generated summary with id {Id} and {Count} action items", summary.Id, summary.ActionItems.Count);
@@ -178,7 +187,6 @@ namespace backend.Services.Implementations
                 return false;
             }
 
-            // Update fields from the DTO
             summary.OriginalText = updateDto.OriginalText;
             summary.SummaryText = updateDto.SummaryText;
 

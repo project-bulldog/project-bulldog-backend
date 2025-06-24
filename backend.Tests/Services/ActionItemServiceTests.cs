@@ -17,6 +17,7 @@ namespace backend.Tests.Services
         private readonly Mock<ILogger<ActionItemService>> _loggerMock;
         private readonly Mock<ISummaryService> _summaryServiceMock;
         private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
+        private readonly Mock<IUserService> _userServiceMock;
         private readonly ActionItemService _service;
         private readonly Guid _testUserId = Guid.NewGuid();
         private readonly Guid _otherUserId = Guid.NewGuid();
@@ -31,8 +32,9 @@ namespace backend.Tests.Services
             _loggerMock = new Mock<ILogger<ActionItemService>>();
             _summaryServiceMock = new Mock<ISummaryService>();
             _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+            _userServiceMock = new Mock<IUserService>();
             _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
-            _service = new ActionItemService(_context, _loggerMock.Object, _summaryServiceMock.Object, _currentUserProviderMock.Object);
+            _service = new ActionItemService(_context, _loggerMock.Object, _summaryServiceMock.Object, _currentUserProviderMock.Object, _userServiceMock.Object);
         }
 
         [Fact]
@@ -290,7 +292,8 @@ namespace backend.Tests.Services
                 UserId = user.Id,
                 OriginalText = originalText,
                 SummaryText = summaryText,
-                CreatedAt = DateTime.UtcNow
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
             };
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();

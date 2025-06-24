@@ -8,7 +8,8 @@ namespace backend.Models
         public string Email { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAtLocal { get; set; }
 
         //Email verification
         public bool EmailVerified { get; set; } = false;
@@ -20,6 +21,9 @@ namespace backend.Models
         public string? CurrentOtp { get; set; }
         public int OtpAttemptsLeft { get; set; } = 5;
         public DateTime? OtpExpiresAt { get; set; }
+
+        //User preferences
+        public string? TimeZoneId { get; set; }
 
         public ICollection<Summary> Summaries { get; set; } = [];
         public ICollection<RefreshToken> RefreshTokens { get; set; } = [];

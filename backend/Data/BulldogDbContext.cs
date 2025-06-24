@@ -21,6 +21,23 @@ namespace backend.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Configure CreatedAtLocal fields to use timestamp without time zone
+            modelBuilder.Entity<User>()
+                .Property(u => u.CreatedAtLocal)
+                .HasColumnType("timestamp without time zone");
+
+            modelBuilder.Entity<Summary>()
+                .Property(s => s.CreatedAtLocal)
+                .HasColumnType("timestamp without time zone");
+
+            modelBuilder.Entity<ActionItem>()
+                .Property(ai => ai.CreatedAtLocal)
+                .HasColumnType("timestamp without time zone");
+
+            modelBuilder.Entity<Reminder>()
+                .Property(r => r.CreatedAtLocal)
+                .HasColumnType("timestamp without time zone");
+
             // Unique constraint on User.Email
             modelBuilder.Entity<User>()
                 .HasIndex(u => u.Email)
@@ -73,7 +90,7 @@ namespace backend.Data
                 entity.HasKey(ai => ai.Id);
 
                 entity.Property(ai => ai.Id)
-                      .ValueGeneratedNever(); // ✅ Prevent PostgreSQL identity error
+                      .ValueGeneratedNever();
 
                 entity.Property(ai => ai.Text)
                       .IsRequired()
@@ -92,7 +109,7 @@ namespace backend.Data
             {
                 entity.HasKey(rt => rt.Id);
 
-                entity.HasIndex(rt => rt.HashedToken).IsUnique(); // Secure lookup
+                entity.HasIndex(rt => rt.HashedToken).IsUnique();
 
                 entity.Property(rt => rt.EncryptedToken)
                       .IsRequired()

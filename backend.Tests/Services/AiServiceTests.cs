@@ -1,7 +1,6 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
-using backend.Dtos.Summaries;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Implementations;
 using backend.Services.Interfaces;
@@ -16,6 +15,7 @@ public class AiServiceTests : IDisposable
     private readonly BulldogDbContext _context;
     private readonly Mock<IOpenAiService> _openAiServiceMock;
     private readonly Mock<ICurrentUserProvider> _currentUserProviderMock;
+    private readonly Mock<IUserService> _userServiceMock;
     private readonly Mock<ILogger<AiService>> _loggerMock;
     private readonly AiService _service;
     private readonly Guid _testUserId = Guid.NewGuid();
@@ -29,10 +29,11 @@ public class AiServiceTests : IDisposable
         _context = new BulldogDbContext(options);
         _openAiServiceMock = new Mock<IOpenAiService>();
         _currentUserProviderMock = new Mock<ICurrentUserProvider>();
+        _userServiceMock = new Mock<IUserService>();
         _loggerMock = new Mock<ILogger<AiService>>();
         _currentUserProviderMock.Setup(x => x.UserId).Returns(_testUserId);
         // Use a very low chunk threshold for tests
-        _service = new AiService(_context, _currentUserProviderMock.Object, _openAiServiceMock.Object, _loggerMock.Object, 10);
+        _service = new AiService(_context, _currentUserProviderMock.Object, _openAiServiceMock.Object, _userServiceMock.Object, _loggerMock.Object, 10);
     }
 
     public void Dispose()
@@ -54,7 +55,7 @@ public class AiServiceTests : IDisposable
         };
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto(inputText);
@@ -98,7 +99,7 @@ public class AiServiceTests : IDisposable
         var expectedActionItems = new List<ActionItemDto>();
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto(inputText);
@@ -133,7 +134,7 @@ public class AiServiceTests : IDisposable
         var request = new CreateAiSummaryRequestDto(inputText);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new Exception("OpenAI service error"));
 
         // Act & Assert
@@ -153,7 +154,7 @@ public class AiServiceTests : IDisposable
         };
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         var request = new CreateAiSummaryRequestDto(inputText);
@@ -254,10 +255,10 @@ public class AiServiceTests : IDisposable
 
         // Mock the SummarizeAndExtractAsync for chunk processing
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) =>
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string model, string tz) =>
             {
-                if (text.StartsWith("Summarize this combined summary"))
+                if (model == "Final Summary")
                 {
                     return ("Final Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Final Task", IsDone = false } });
                 }
@@ -281,6 +282,7 @@ public class AiServiceTests : IDisposable
         _openAiServiceMock.Verify(
             x => x.SummarizeAndExtractAsync(
                 It.Is<string>(s => !s.StartsWith("Summarize this combined summary")),
+                It.IsAny<string>(),
                 It.IsAny<string>()),
             Times.AtLeast(2));
 
@@ -303,15 +305,15 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true, "gpt-4-turbo");
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("GPT-4 Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string model, string tz) => (model == "gpt-4-turbo" ? "GPT-4 Summary" : "Chunk Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
         var (summary, tasks) = result;
 
         // Assert
-        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(input, "gpt-4-turbo"), Times.Once);
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(input, "gpt-4-turbo", It.IsAny<string>()), Times.Once);
         Assert.Contains("GPT-4 Summary", summary);
         Assert.Single(tasks);
     }
@@ -324,8 +326,8 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string model, string tz) => (text == "" ? "No summary available" : "Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         _openAiServiceMock
             .Setup(x => x.GetSummaryOnlyAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -348,8 +350,8 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string model, string tz) => (model == "Final Summary" ? "Final Summary" : "Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -358,7 +360,7 @@ public class AiServiceTests : IDisposable
         // Assert
         Assert.NotNull(summary);
         Assert.NotEmpty(tasks);
-        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.Contains("\\n")), It.IsAny<string>()), Times.Once);
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.Is<string>(s => !s.Contains("\\n")), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
     }
 
     [Fact]
@@ -370,8 +372,8 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync((string text, string _) => ("Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync((string text, string model, string tz) => (model == "Final Summary" ? "Final Summary" : "Summary", new List<ActionItemDto> { new ActionItemDto { Text = "Task 1", IsDone = false } }));
 
         // Act
         var result = await _service.SummarizeAndExtractActionItemsChunkedAsync(request);
@@ -380,7 +382,7 @@ public class AiServiceTests : IDisposable
         // Assert
         Assert.NotNull(summary);
         Assert.NotEmpty(tasks);
-        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()), Times.AtLeast(2));
+        _openAiServiceMock.Verify(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.AtLeast(2));
     }
 
     [Fact]
@@ -397,7 +399,7 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         // Act
@@ -440,7 +442,7 @@ public class AiServiceTests : IDisposable
         var request = new AiChunkedSummaryResponseDto(input, _testUserId, true);
 
         _openAiServiceMock
-            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Setup(x => x.SummarizeAndExtractAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
             .ReturnsAsync((expectedSummary, expectedActionItems));
 
         // Act

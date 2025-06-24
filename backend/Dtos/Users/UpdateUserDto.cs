@@ -10,5 +10,6 @@ namespace backend.Dtos.Users
         public string? NewPassword { get; set; }
         public bool? EmailVerified { get; set; }
         public bool? PhoneNumberVerified { get; set; }
+        public string? TimeZoneId { get; set; }
     }
 }

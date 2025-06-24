@@ -8,7 +8,8 @@ namespace backend.Models
         public Guid UserId { get; set; }
         public required string OriginalText { get; set; }
         public required string SummaryText { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAtLocal { get; set; }
 
         // Navigation
         public User? User { get; set; }

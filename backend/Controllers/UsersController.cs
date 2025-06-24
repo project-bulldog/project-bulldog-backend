@@ -1,7 +1,9 @@
 using backend.Dtos.Users;
+using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TimeZoneConverter;
 namespace backend.Controllers;
 
 [ApiController]
@@ -10,12 +12,31 @@ namespace backend.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ICurrentUserProvider _currentUserProvider;
     private readonly ILogger<UsersController> _logger;
 
-    public UsersController(IUserService userService, ILogger<UsersController> logger)
+    public UsersController(IUserService userService, ICurrentUserProvider currentUserProvider, ILogger<UsersController> logger)
     {
         _userService = userService;
+        _currentUserProvider = currentUserProvider;
         _logger = logger;
+    }
+
+    // GET: api/users/me
+    [HttpGet("me")]
+    public async Task<ActionResult<UserDto>> GetCurrentUser()
+    {
+        var userId = _currentUserProvider.UserId;
+        _logger.LogInformation("Fetching current user with id {Id}", userId);
+
+        var user = await _userService.GetUserAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("Current user with id {Id} not found", userId);
+            return NotFound();
+        }
+
+        return Ok(user);
     }
 
     // GET: api/users
@@ -83,5 +104,42 @@ public class UsersController : ControllerBase
 
         _logger.LogInformation("User with id {Id} deleted successfully", id);
         return NoContent();
+    }
+
+    // GET: api/users/timezones
+    [HttpGet("timezones")]
+    public ActionResult<IEnumerable<object>> GetTimeZones()
+    {
+        var timeZones = TimeZoneInfo.GetSystemTimeZones()
+            .Select(tz =>
+            {
+                try
+                {
+                    return new
+                    {
+                        Id = TZConvert.WindowsToIana(tz.Id),
+                        tz.DisplayName,
+                        tz.StandardName,
+                        BaseUtcOffset = tz.BaseUtcOffset.TotalHours
+                    };
+                }
+                catch
+                {
+                    // Fallback to original ID if conversion fails
+                    return new
+                    {
+                        tz.Id,
+                        tz.DisplayName,
+                        tz.StandardName,
+                        BaseUtcOffset = tz.BaseUtcOffset.TotalHours
+                    };
+                }
+            })
+            .GroupBy(tz => tz.Id) // Group by ID to handle duplicates
+            .Select(group => group.First()) // Take the first occurrence of each ID
+            .OrderBy(tz => tz.BaseUtcOffset)
+            .ToList();
+
+        return Ok(timeZones);
     }
 }
