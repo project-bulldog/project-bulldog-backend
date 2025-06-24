@@ -23,7 +23,15 @@ public class AiController : ControllerBase
     [HttpPost("summarize")]
     public async Task<ActionResult<AiSummaryResponseDto>> SummarizeText([FromBody] CreateAiSummaryRequestDto request)
     {
-        var response = await _aiService.SummarizeAsync(request);
+        // Get user timezone from request headers if available
+        var userTimeZoneId = GetUserTimeZoneFromHeader();
+
+        if (!string.IsNullOrEmpty(userTimeZoneId))
+        {
+            _logger.LogInformation("👤 Processing request with user timezone: {UserTimezone}", userTimeZoneId);
+        }
+
+        var response = await _aiService.SummarizeAsync(request, userTimeZoneId);
         return Ok(response);
     }
 
@@ -49,5 +57,12 @@ public class AiController : ControllerBase
     {
         var response = await _aiService.SummarizeAndSaveChunkedAsync(request);
         return Ok(response);
+    }
+
+    private string? GetUserTimeZoneFromHeader()
+    {
+        return Request.Headers.TryGetValue("X-User-TimeZone", out var value)
+            ? value.FirstOrDefault()
+            : null;
     }
 }

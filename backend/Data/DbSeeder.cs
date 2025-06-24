@@ -13,7 +13,9 @@ public static class DbSeeder
         {
             Id = Guid.NewGuid(),
             Email = "testuser@example.com",
-            DisplayName = "Test User"
+            DisplayName = "Test User",
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
         };
 
         // Create summaries for the user
@@ -23,7 +25,8 @@ public static class DbSeeder
             UserId = user.Id,
             OriginalText = "Meeting about Q2 goals and upcoming launch.",
             SummaryText = "Discussed Q2 goals and set milestones for product launch.",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
             User = user
         };
 
@@ -33,7 +36,8 @@ public static class DbSeeder
             UserId = user.Id,
             OriginalText = "Follow-up on design sprint and feedback.",
             SummaryText = "Reviewed sprint feedback and outlined next steps.",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
             User = user
         };
 
@@ -44,6 +48,8 @@ public static class DbSeeder
             Text = "Email project timeline to stakeholders.",
             IsDone = false,
             DueAt = DateTime.UtcNow.AddDays(2),
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
             Summary = summary1
         };
 
@@ -52,6 +58,8 @@ public static class DbSeeder
             Id = Guid.NewGuid(),
             Text = "Prepare slides for Q2 presentation.",
             IsDone = false,
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
             Summary = summary1
         };
 
@@ -61,6 +69,8 @@ public static class DbSeeder
             Text = "Schedule next design sprint meeting.",
             IsDone = true,
             DueAt = DateTime.UtcNow.AddDays(1),
+            CreatedAtUtc = DateTime.UtcNow,
+            CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
             Summary = summary2
         };
 
@@ -79,6 +89,8 @@ public static class DbSeeder
                 UserId = user.Id,
                 Message = "Follow up on Q2 timeline email.",
                 ReminderTime = DateTime.UtcNow.AddHours(12),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
                 ActionItem = actionItem1
             },
             new()
@@ -87,6 +99,8 @@ public static class DbSeeder
                 UserId = user.Id,
                 Message = "Start working on slides tomorrow.",
                 ReminderTime = DateTime.UtcNow.AddDays(1),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow, // Test data uses UTC
                 ActionItem = actionItem2
             },
             new()
@@ -94,21 +108,27 @@ public static class DbSeeder
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
                 Message = "Check in on design sprint meeting outcome.",
-                ReminderTime = DateTime.UtcNow.AddDays(3)
+                ReminderTime = DateTime.UtcNow.AddDays(3),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
             },
             new()
             {
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
                 Message = "Pay invoices by the 15th.",
-                ReminderTime = DateTime.UtcNow.AddDays(5)
+                ReminderTime = DateTime.UtcNow.AddDays(5),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
             },
             new()
             {
                 Id = Guid.NewGuid(),
                 UserId = user.Id,
                 Message = "Review monthly budget.",
-                ReminderTime = DateTime.UtcNow.AddDays(7)
+                ReminderTime = DateTime.UtcNow.AddDays(7),
+                CreatedAtUtc = DateTime.UtcNow,
+                CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
             }
         };
 

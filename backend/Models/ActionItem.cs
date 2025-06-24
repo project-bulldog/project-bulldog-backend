@@ -12,6 +12,9 @@ namespace backend.Models
         public bool ShouldRemind { get; set; } = true;
         public int? ReminderMinutesBeforeDue { get; set; }
 
+        public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAtLocal { get; set; }
+
         public Summary? Summary { get; set; }
     }
 }

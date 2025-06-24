@@ -14,6 +14,7 @@ public static class UserMapper
         TwoFactorEnabled = user.TwoFactorEnabled,
         PhoneNumber = user.PhoneNumber,
         PhoneNumberVerified = user.PhoneNumberVerified,
+        TimeZoneId = user.TimeZoneId,
         Summaries = [.. user.Summaries.Select(SummaryMapper.ToDto)]
     };
 }

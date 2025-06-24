@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
+using backend.Helpers;
 using backend.Mappers;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
@@ -17,47 +18,46 @@ namespace backend.Services.Implementations
         private readonly BulldogDbContext _context;
         private readonly ICurrentUserProvider _currentUserProvider;
         private readonly IOpenAiService _openAiService;
+        private readonly IUserService _userService;
         private readonly ILogger<AiService> _logger;
 
         public AiService(
             BulldogDbContext context,
             ICurrentUserProvider currentUserProvider,
             IOpenAiService openAiService,
+            IUserService userService,
             ILogger<AiService> logger,
             int maxTokensPerChunk = 120_000)
         {
             _context = context;
             _currentUserProvider = currentUserProvider;
             _openAiService = openAiService;
+            _userService = userService;
             _logger = logger;
             _maxTokensPerChunk = maxTokensPerChunk;
         }
 
-        public async Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request)
+        public async Task<AiSummaryResponseDto> SummarizeAsync(CreateAiSummaryRequestDto request, string? userTimeZoneId = null)
         {
             var userId = _currentUserProvider.UserId;
+            userTimeZoneId ??= await GetCurrentUserTimeZoneIdAsync();
 
-            // Call your OpenAI wrapper for summary + action items
-            var (summaryText, actionItemDtos) = await _openAiService.SummarizeAndExtractAsync(request.InputText);
+            var (summaryText, actionItemDtos) = await _openAiService.SummarizeAndExtractAsync(
+                request.InputText,
+                string.Empty,
+                userTimeZoneId ?? string.Empty
+            );
 
-            // Build the entity, including ActionItems
-            var summary = new Summary
+            var actionItems = actionItemDtos.Select(dto => new ActionItem
             {
                 Id = Guid.NewGuid(),
-                UserId = userId,
-                CreatedAt = DateTime.UtcNow,
-                OriginalText = request.InputText,
-                SummaryText = summaryText,
-                ActionItems = [.. actionItemDtos.Select(dto => new ActionItem
-                {
-                    Id = Guid.NewGuid(),
-                    Text = dto.Text,
-                    DueAt = dto.DueAt,
-                    IsDone = false,
-                    IsDateOnly = dto.IsDateOnly
-                    // SummaryId will be automatically set by EF via the navigation
-                })]
-            };
+                Text = dto.Text,
+                DueAt = dto.DueAt,
+                IsDone = false,
+                IsDateOnly = dto.IsDateOnly
+            }).ToList();
+
+            var summary = BuildSummary(request.InputText, summaryText, actionItems, userTimeZoneId);
 
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
@@ -107,12 +107,14 @@ namespace backend.Services.Implementations
             var model = request.Model ?? DefaultModel;
             var useMapReduce = request.UseMapReduce ?? true;
 
+            var userTimeZoneId = await GetCurrentUserTimeZoneIdAsync() ?? string.Empty;
+
             var encoder = GptEncoding.GetEncodingForModel(model);
             var totalTokens = encoder.CountTokens(request.Input);
 
             if (model == "gpt-4-turbo" && totalTokens < _maxTokensPerChunk)
             {
-                return await _openAiService.SummarizeAndExtractAsync(request.Input, model);
+                return await _openAiService.SummarizeAndExtractAsync(request.Input, model, userTimeZoneId);
             }
 
             var chunks = ChunkByTokens(request.Input, encoder, _maxTokensPerChunk);
@@ -124,7 +126,7 @@ namespace backend.Services.Implementations
 
             foreach (var chunk in chunks)
             {
-                var (summary, actionItems) = await _openAiService.SummarizeAndExtractAsync(chunk, model);
+                var (summary, actionItems) = await _openAiService.SummarizeAndExtractAsync(chunk, model, userTimeZoneId);
 
                 if (!string.IsNullOrEmpty(summary))
                 {
@@ -148,17 +150,13 @@ namespace backend.Services.Implementations
         public async Task<AiSummaryResponseDto> SummarizeAndSaveChunkedAsync(AiChunkedSummaryResponseDto request)
         {
             var userId = _currentUserProvider.UserId;
+            var userTimeZoneId = await GetCurrentUserTimeZoneIdAsync();
 
-            // 3.1) Run the chunked logic (in-memory only)
             var (summaryText, actionItemDtos) = await SummarizeAndExtractActionItemsChunkedAsync(request);
 
-            // 3.2) Convert to ActionItem entities with logging
             var actionItems = actionItemDtos.Select(dto =>
             {
-                _logger.LogInformation(
-                    "📋 From AI DTO → Text='{Text}', DueAt={DueAt}, IsDateOnly={IsDateOnly}",
-                    dto.Text, dto.DueAt, dto.IsDateOnly);
-
+                _logger.LogInformation("📋 From AI DTO → Text='{Text}', DueAt={DueAt}, IsDateOnly={IsDateOnly}", dto.Text, dto.DueAt, dto.IsDateOnly);
                 return new ActionItem
                 {
                     Id = Guid.NewGuid(),
@@ -169,16 +167,7 @@ namespace backend.Services.Implementations
                 };
             }).ToList();
 
-            // 3.3) Build the Summary entity
-            var summary = new Summary
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                CreatedAt = DateTime.UtcNow,
-                OriginalText = request.Input,
-                SummaryText = summaryText,
-                ActionItems = actionItems
-            };
+            var summary = BuildSummary(request.Input, summaryText, actionItems, userTimeZoneId);
 
             foreach (var item in summary.ActionItems)
             {
@@ -186,11 +175,9 @@ namespace backend.Services.Implementations
                     item.Text, item.DueAt, item.IsDateOnly);
             }
 
-            // 3.4) Persist Summary + ActionItems
             _context.Summaries.Add(summary);
             await _context.SaveChangesAsync();
 
-            // 3.5) Return saved DTO
             return new AiSummaryResponseDto
             {
                 Summary = SummaryMapper.ToDto(summary)
@@ -216,6 +203,48 @@ namespace backend.Services.Implementations
 
             return chunks;
         }
+
+        private DateTime GetUserLocalTime(DateTime utcNow, string? timeZoneId)
+        {
+            if (string.IsNullOrWhiteSpace(timeZoneId))
+                return utcNow;
+
+            try
+            {
+                var tzId = TimeZoneHelpers.NormalizeTimeZoneId(timeZoneId);
+                var userTimeZone = TimeZoneInfo.FindSystemTimeZoneById(tzId);
+                return TimeZoneInfo.ConvertTimeFromUtc(utcNow, userTimeZone);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                _logger.LogWarning("User timezone {Timezone} not found, using UTC for local time", timeZoneId);
+                return utcNow;
+            }
+        }
+
+        private async Task<string?> GetCurrentUserTimeZoneIdAsync()
+        {
+            var user = await _userService.GetUserEntityAsync(_currentUserProvider.UserId);
+            return user?.TimeZoneId;
+        }
+
+        private Summary BuildSummary(string originalText, string summaryText, List<ActionItem> actionItems, string? timeZoneId)
+        {
+            var utcNow = DateTime.UtcNow;
+            var localNow = GetUserLocalTime(utcNow, timeZoneId);
+
+            return new Summary
+            {
+                Id = Guid.NewGuid(),
+                UserId = _currentUserProvider.UserId,
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = localNow,
+                OriginalText = originalText,
+                SummaryText = summaryText,
+                ActionItems = actionItems
+            };
+        }
+
         #endregion
     }
 }

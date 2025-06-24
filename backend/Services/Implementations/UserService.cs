@@ -57,12 +57,13 @@ namespace backend.Services.Implementations
 
         public async Task<User?> GetUserByEmailAsync(string email)
         {
-            return await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+            return await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == NormalizeEmail(email));
         }
 
         public async Task<UserDto> CreateUserAsync(CreateUserDto dto)
         {
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            var utcNow = DateTime.UtcNow;
 
             var user = new User
             {
@@ -71,7 +72,9 @@ namespace backend.Services.Implementations
                 DisplayName = dto.DisplayName,
                 PasswordHash = hashedPassword,
                 PhoneNumber = dto.PhoneNumber,
-                TwoFactorEnabled = dto.EnableTwoFactor
+                TwoFactorEnabled = dto.EnableTwoFactor,
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = utcNow // Will be updated when user sets timezone
             };
 
             _context.Users.Add(user);
@@ -84,7 +87,7 @@ namespace backend.Services.Implementations
 
         public async Task<User> RegisterUserAsync(CreateUserDto dto)
         {
-            var normalizedEmail = dto.Email.ToLower();
+            var normalizedEmail = NormalizeEmail(dto.Email);
             if (await _context.Users.AnyAsync(u => u.Email.ToLower() == normalizedEmail))
             {
                 _logger.LogWarning("Registration failed: Email {Email} already registered", LogSanitizer.SanitizeForLog(dto.Email));
@@ -92,6 +95,7 @@ namespace backend.Services.Implementations
             }
 
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            var utcNow = DateTime.UtcNow;
 
             var user = new User
             {
@@ -100,8 +104,9 @@ namespace backend.Services.Implementations
                 DisplayName = dto.DisplayName,
                 PasswordHash = hashedPassword,
                 PhoneNumber = dto.PhoneNumber,
-                TwoFactorEnabled = dto.EnableTwoFactor
-
+                TwoFactorEnabled = dto.EnableTwoFactor,
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = utcNow // Will be updated when user sets timezone
             };
 
             _context.Users.Add(user);
@@ -113,7 +118,7 @@ namespace backend.Services.Implementations
 
         public async Task<User> ValidateUserAsync(LoginRequestDto request)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == request.Email.ToLower());
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == NormalizeEmail(request.Email));
             if (user == null)
             {
                 _logger.LogWarning("Login failed: User with email {Email} not found", LogSanitizer.SanitizeForLog(request.Email));
@@ -153,18 +158,15 @@ namespace backend.Services.Implementations
                 user.PhoneNumberVerified = updateDto.PhoneNumberVerified.Value;
             }
 
-            // 🔐 Password update flow (requires current password)
+            if (!string.IsNullOrWhiteSpace(updateDto.TimeZoneId))
+            {
+                user.TimeZoneId = TimeZoneHelpers.NormalizeTimeZoneId(updateDto.TimeZoneId);
+                _logger.LogInformation("Timezone updated for user {Id} to {Timezone}", id, user.TimeZoneId);
+            }
+
             if (!string.IsNullOrWhiteSpace(updateDto.NewPassword))
             {
-                if (string.IsNullOrWhiteSpace(updateDto.CurrentPassword) ||
-                    !BCrypt.Net.BCrypt.Verify(updateDto.CurrentPassword, user.PasswordHash))
-                {
-                    _logger.LogWarning("Password update failed: invalid current password for user {Id}", id);
-                    throw new UnauthorizedAccessException("Current password is incorrect.");
-                }
-
-                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updateDto.NewPassword);
-                _logger.LogInformation("Password updated for user {Id}", id);
+                UpdatePassword(user, updateDto.CurrentPassword, updateDto.NewPassword, id);
             }
 
             try
@@ -202,5 +204,21 @@ namespace backend.Services.Implementations
             _logger.LogInformation("User with id {Id} deleted successfully", id);
             return true;
         }
+
+        #region Private Methods
+        private static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
+
+        private void UpdatePassword(User user, string current, string updated, Guid userId)
+        {
+            if (string.IsNullOrWhiteSpace(current) || !BCrypt.Net.BCrypt.Verify(current, user.PasswordHash))
+            {
+                _logger.LogWarning("Password update failed: invalid current password for user {Id}", userId);
+                throw new UnauthorizedAccessException("Current password is incorrect.");
+            }
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(updated);
+            _logger.LogInformation("Password updated for user {Id}", userId);
+        }
+        #endregion
     }
 }

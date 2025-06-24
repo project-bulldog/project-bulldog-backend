@@ -1,11 +1,13 @@
 using backend.Data;
 using backend.Dtos.ActionItems;
 using backend.Dtos.Summaries;
+using backend.Helpers;
 using backend.Mappers;
 using backend.Models;
 using backend.Services.Auth.Interfaces;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using TimeZoneConverter;
 
 namespace backend.Services.Implementations;
 
@@ -15,15 +17,22 @@ public class ActionItemService : IActionItemService
     private readonly ILogger<ActionItemService> _logger;
     private readonly ISummaryService _summaryService;
     private readonly ICurrentUserProvider _currentUserProvider;
+    private readonly IUserService _userService;
 
     private Guid CurrentUserId => _currentUserProvider.UserId;
 
-    public ActionItemService(BulldogDbContext context, ILogger<ActionItemService> logger, ISummaryService summaryService, ICurrentUserProvider currentUserProvider)
+    public ActionItemService(
+        BulldogDbContext context,
+        ILogger<ActionItemService> logger,
+        ISummaryService summaryService,
+        ICurrentUserProvider currentUserProvider,
+        IUserService userService)
     {
         _context = context;
         _logger = logger;
         _summaryService = summaryService;
         _currentUserProvider = currentUserProvider;
+        _userService = userService;
     }
 
     public async Task<IEnumerable<ActionItemDto>> GetActionItemsAsync()
@@ -61,6 +70,10 @@ public class ActionItemService : IActionItemService
     {
         _logger.LogInformation("Creating new action item for user {UserId}", CurrentUserId);
 
+        var user = await _userService.GetUserEntityAsync(CurrentUserId);
+        var utcNow = DateTime.UtcNow;
+        var localNow = TimeZoneHelpers.ConvertToLocal(utcNow, user?.TimeZoneId);
+
         var summaryId = itemDto.SummaryId ?? (
             await _summaryService.CreateSummaryAsync(new CreateSummaryDto
             {
@@ -77,7 +90,9 @@ public class ActionItemService : IActionItemService
             SummaryId = summaryId,
             IsDone = false,
             ShouldRemind = itemDto.ShouldRemind,
-            ReminderMinutesBeforeDue = itemDto.ReminderMinutesBeforeDue
+            ReminderMinutesBeforeDue = itemDto.ReminderMinutesBeforeDue,
+            CreatedAtUtc = utcNow,
+            CreatedAtLocal = localNow
         };
 
         _context.ActionItems.Add(item);
@@ -87,7 +102,7 @@ public class ActionItemService : IActionItemService
         if (item.DueAt.HasValue && item.ShouldRemind)
         {
             var offset = item.ReminderMinutesBeforeDue ?? 60;
-            var reminderTime = item.DueAt.Value.AddMinutes(-offset);
+            var reminderTime = CalculateReminderTime(item.DueAt.Value, offset, user?.TimeZoneId);
 
             var reminder = new Reminder
             {
@@ -96,7 +111,8 @@ public class ActionItemService : IActionItemService
                 ActionItemId = item.Id,
                 ReminderTime = reminderTime,
                 Message = $"Reminder: {item.Text}",
-                CreatedAt = DateTime.UtcNow,
+                CreatedAtUtc = utcNow,
+                CreatedAtLocal = localNow,
                 MaxSendAttempts = 3,
                 IsSent = false
             };
@@ -108,6 +124,7 @@ public class ActionItemService : IActionItemService
         _logger.LogInformation("Created action item {Id}", item.Id);
         return ActionItemMapper.ToDto(item);
     }
+
 
 
     public async Task<bool> UpdateActionItemAsync(Guid id, UpdateActionItemDto itemDto)
@@ -129,13 +146,13 @@ public class ActionItemService : IActionItemService
         item.ShouldRemind = itemDto.ShouldRemind;
         item.ReminderMinutesBeforeDue = itemDto.ReminderMinutesBeforeDue;
 
-        // 🔔 Update or delete associated reminder
         var existingReminder = await _context.Reminders.FirstOrDefaultAsync(r => r.ActionItemId == item.Id);
 
         if (item.DueAt.HasValue && item.ShouldRemind)
         {
             var offset = item.ReminderMinutesBeforeDue ?? 60;
-            var reminderTime = item.DueAt.Value.AddMinutes(-offset);
+            var user = await _userService.GetUserEntityAsync(CurrentUserId);
+            var reminderTime = CalculateReminderTime(item.DueAt.Value, offset, user?.TimeZoneId);
 
             if (existingReminder != null)
             {
@@ -153,7 +170,6 @@ public class ActionItemService : IActionItemService
                     ActionItemId = item.Id,
                     ReminderTime = reminderTime,
                     Message = $"Reminder: {item.Text}",
-                    CreatedAt = DateTime.UtcNow,
                     MaxSendAttempts = 3,
                     IsSent = false
                 });
@@ -161,7 +177,7 @@ public class ActionItemService : IActionItemService
         }
         else if (existingReminder != null)
         {
-            _context.Reminders.Remove(existingReminder); // 🚫 Remove reminder if not needed
+            _context.Reminders.Remove(existingReminder);
         }
 
         try
@@ -176,6 +192,7 @@ public class ActionItemService : IActionItemService
             throw;
         }
     }
+
 
 
     public async Task<bool> DeleteActionItemAsync(Guid id)
@@ -228,4 +245,24 @@ public class ActionItemService : IActionItemService
         _logger.LogInformation("Toggled IsDone for action item {Id} to {NewValue}", id, item.IsDone);
         return ActionItemMapper.ToDto(item);
     }
+
+    private DateTime CalculateReminderTime(DateTime dueAtUtc, int offsetMinutes, string? userTimeZoneId)
+    {
+        try
+        {
+            var localDue = TimeZoneHelpers.ConvertToLocal(dueAtUtc, userTimeZoneId);
+            var localReminder = localDue.AddMinutes(-offsetMinutes);
+            var utcReminder = TimeZoneHelpers.ConvertToUtc(localReminder, userTimeZoneId);
+
+            _logger.LogInformation("🧠 ReminderTime calculated using timezone {TimezoneId}: {UtcTime}", userTimeZoneId, utcReminder);
+            return utcReminder;
+        }
+        catch
+        {
+            var fallback = dueAtUtc.AddMinutes(-offsetMinutes);
+            _logger.LogWarning("⚠️ Failed to calculate reminder in timezone {TimezoneId}, falling back to UTC: {UtcTime}", userTimeZoneId, fallback);
+            return fallback;
+        }
+    }
+
 }
