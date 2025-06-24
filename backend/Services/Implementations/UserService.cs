@@ -161,7 +161,7 @@ namespace backend.Services.Implementations
             if (!string.IsNullOrWhiteSpace(updateDto.TimeZoneId))
             {
                 user.TimeZoneId = TimeZoneHelpers.NormalizeTimeZoneId(updateDto.TimeZoneId);
-                _logger.LogInformation("Timezone updated for user {Id} to {Timezone}", id, user.TimeZoneId);
+                _logger.LogInformation("Timezone updated for user {Id} to {Timezone}", id, LogSanitizer.SanitizeForLog(user.TimeZoneId));
             }
 
             if (!string.IsNullOrWhiteSpace(updateDto.NewPassword))
