@@ -1,13 +1,12 @@
 using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using backend.Data;
-using backend.Helpers;
 using backend.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services.Implementations;
 
-public class SesNotificationService : INotificationService
+public partial class SesNotificationService : INotificationService
 {
     private readonly ILogger<SesNotificationService> _logger;
     private readonly IConfiguration _config;
@@ -57,7 +56,7 @@ public class SesNotificationService : INotificationService
 
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
-        var fromEmail = _config["AmazonEmail:FromAddress"];
+        var fromEmail = _config["AWS:FromEmail"];
 
         var sendRequest = new SendEmailRequest
         {
@@ -69,7 +68,7 @@ public class SesNotificationService : INotificationService
                 Body = new Body
                 {
                     Html = new Content(htmlBody),
-                    Text = new Content(System.Text.RegularExpressions.Regex.Replace(htmlBody, "<.*?>", ""))
+                    Text = new Content(MyRegex().Replace(htmlBody, ""))
                 }
             }
         };
@@ -85,4 +84,7 @@ public class SesNotificationService : INotificationService
             .Select(u => u.Email)
             .FirstOrDefaultAsync();
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex("<.*?>")]
+    private static partial System.Text.RegularExpressions.Regex MyRegex();
 }

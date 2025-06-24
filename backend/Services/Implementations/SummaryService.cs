@@ -72,8 +72,7 @@ namespace backend.Services.Implementations
                 CreatedAt = DateTime.UtcNow
             };
 
-            // If action items are provided, add them
-            if (dto.ActionItems != null && dto.ActionItems.Count > 0)
+            if (dto.ActionItems is { Count: > 0 })
             {
                 summary.ActionItems = dto.ActionItems.Select(ai => new ActionItem
                 {
@@ -83,14 +82,39 @@ namespace backend.Services.Implementations
                         ? DateTime.SpecifyKind(ai.DueAt.Value, DateTimeKind.Utc)
                         : null,
                     IsDone = false,
-                    IsDateOnly = ai.IsDateOnly
+                    IsDateOnly = ai.IsDateOnly,
+                    ShouldRemind = ai.ShouldRemind,
+                    ReminderMinutesBeforeDue = ai.ReminderMinutesBeforeDue
                 }).ToList();
             }
 
             _context.Summaries.Add(summary);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); // This ensures ActionItem IDs exist
 
-            // Fetch the full summary including User + ActionItems
+            // 🔔 Create reminders for each ActionItem with DueAt and ShouldRemind == true
+            foreach (var actionItem in summary.ActionItems.Where(ai => ai is { DueAt: not null, ShouldRemind: true }))
+            {
+                var offset = actionItem.ReminderMinutesBeforeDue ?? 60; // Default 60 mins before
+                var reminderTime = actionItem.DueAt.Value.AddMinutes(-offset);
+
+                var reminder = new Reminder
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = summary.UserId,
+                    ActionItemId = actionItem.Id,
+                    ReminderTime = reminderTime,
+                    Message = $"Reminder: {actionItem.Text}",
+                    CreatedAt = DateTime.UtcNow,
+                    MaxSendAttempts = 3,
+                    IsSent = false
+                };
+
+                _context.Reminders.Add(reminder);
+            }
+
+            await _context.SaveChangesAsync(); // Save reminders
+
+            // Load the full summary with related data
             var loaded = await _context.Summaries
                 .AsNoTracking()
                 .Include(s => s.User)
@@ -107,6 +131,7 @@ namespace backend.Services.Implementations
 
             return SummaryMapper.ToDto(loaded);
         }
+
 
         public async Task<SummaryDto> GenerateChunkedSummaryWithActionItemsAsync(string input, bool useMapReduce = true, string? modelOverride = null)
         {
@@ -138,7 +163,6 @@ namespace backend.Services.Implementations
 
             return SummaryMapper.ToDto(summary);
         }
-
 
         public async Task<bool> UpdateSummaryAsync(Guid id, UpdateSummaryDto updateDto)
         {

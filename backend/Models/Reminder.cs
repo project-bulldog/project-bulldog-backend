@@ -9,6 +9,7 @@ namespace backend.Models
 
         public string Message { get; set; } = string.Empty;
         public DateTime ReminderTime { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public bool IsSent { get; set; } = false;
         public DateTime? SentAt { get; set; }
