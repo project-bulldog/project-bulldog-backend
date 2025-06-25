@@ -42,7 +42,27 @@ public static class TimeZoneHelpers
     public static string NormalizeTimeZoneId(string timeZoneId)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return TZConvert.IanaToWindows(timeZoneId);
+        {
+            // Check if it's already a Windows timezone ID
+            try
+            {
+                TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+                return timeZoneId; // Already a valid Windows timezone ID
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Not a Windows timezone ID, try to convert from IANA
+                try
+                {
+                    return TZConvert.IanaToWindows(timeZoneId);
+                }
+                catch
+                {
+                    // If conversion fails, return the original
+                    return timeZoneId;
+                }
+            }
+        }
 
         return timeZoneId;
     }
