@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using backend.Configuration;
+using backend.Helpers;
 using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Extensions;
@@ -182,7 +183,7 @@ public static class RateLimitingExtensions
         {
             var requestLogger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
             requestLogger.LogWarning("Rate limit exceeded for {Path} from {IP}",
-                context.HttpContext.Request.Path,
+                LogSanitizer.SanitizeForLog(context.HttpContext.Request.Path.ToString()),
                 context.HttpContext.Connection.RemoteIpAddress);
             return ValueTask.CompletedTask;
         };
