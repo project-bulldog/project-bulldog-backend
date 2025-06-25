@@ -1,9 +1,10 @@
 using System.Text.Json;
 using backend.Dtos.ActionItems;
 using backend.Dtos.AiSummaries;
+using backend.Helpers;
 using backend.Services.Interfaces;
 using OpenAI.Chat;
-using TimeZoneConverter;
+
 
 namespace backend.Services.Implementations
 {
@@ -271,12 +272,8 @@ namespace backend.Services.Implementations
                 {
                     try
                     {
-                        // Convert IANA to Windows if on Windows
-                        var tzId = userTimeZoneId;
-                        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-                        {
-                            tzId = TZConvert.IanaToWindows(userTimeZoneId);
-                        }
+                        // Use the normalized timezone helper
+                        var tzId = TimeZoneHelpers.NormalizeTimeZoneId(userTimeZoneId);
                         var userTimezone = TimeZoneInfo.FindSystemTimeZoneById(tzId);
                         var utcTime = TimeZoneInfo.ConvertTimeToUtc(parsedDate, userTimezone);
                         Console.WriteLine($"✅ Converted from user timezone {userTimeZoneId}: {parsedDate} → UTC: {utcTime}");
