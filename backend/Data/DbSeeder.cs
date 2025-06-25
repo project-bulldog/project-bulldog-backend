@@ -14,8 +14,7 @@ public static class DbSeeder
             Id = Guid.NewGuid(),
             Email = "testuser@example.com",
             DisplayName = "Test User",
-            CreatedAtUtc = DateTime.UtcNow,
-            CreatedAtLocal = DateTime.UtcNow // Test data uses UTC
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         // Create summaries for the user

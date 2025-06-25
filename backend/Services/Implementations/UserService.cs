@@ -73,8 +73,7 @@ namespace backend.Services.Implementations
                 PasswordHash = hashedPassword,
                 PhoneNumber = dto.PhoneNumber,
                 TwoFactorEnabled = dto.EnableTwoFactor,
-                CreatedAtUtc = utcNow,
-                CreatedAtLocal = utcNow // Will be updated when user sets timezone
+                CreatedAtUtc = utcNow
             };
 
             _context.Users.Add(user);
@@ -105,8 +104,7 @@ namespace backend.Services.Implementations
                 PasswordHash = hashedPassword,
                 PhoneNumber = dto.PhoneNumber,
                 TwoFactorEnabled = dto.EnableTwoFactor,
-                CreatedAtUtc = utcNow,
-                CreatedAtLocal = utcNow // Will be updated when user sets timezone
+                CreatedAtUtc = utcNow
             };
 
             _context.Users.Add(user);

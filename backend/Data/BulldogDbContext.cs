@@ -22,10 +22,6 @@ namespace backend.Data
             base.OnModelCreating(modelBuilder);
 
             // Configure CreatedAtLocal fields to use timestamp without time zone
-            modelBuilder.Entity<User>()
-                .Property(u => u.CreatedAtLocal)
-                .HasColumnType("timestamp without time zone");
-
             modelBuilder.Entity<Summary>()
                 .Property(s => s.CreatedAtLocal)
                 .HasColumnType("timestamp without time zone");
