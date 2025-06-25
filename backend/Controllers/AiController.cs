@@ -2,12 +2,14 @@ using backend.Dtos.AiSummaries;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/ai")]
 [Authorize]
+[EnableRateLimiting("AI")]
 public class AiController : ControllerBase
 {
     private readonly IAiService _aiService;

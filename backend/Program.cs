@@ -7,6 +7,7 @@ using Amazon.Runtime;
 using Amazon.SimpleEmail;
 using Azure.Storage.Blobs;
 using backend.Data;
+using backend.Extensions;
 using backend.HealthChecks;
 using backend.Infrastructure;
 using backend.Services.Auth.Implementations;
@@ -19,6 +20,7 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.IdentityModel.Tokens;
 
@@ -161,21 +163,10 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<BulldogDbContext>("Database")
     .AddCheck<ReminderHealthCheck>("ReminderChecker");
 
-builder.Services.AddRateLimiter(options =>
-{
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 40,                         // Max 40 requests
-                Window = TimeSpan.FromMinutes(1),         // Per 1-minute window
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0                            // No queueing; reject extra
-            }));
-
-    options.RejectionStatusCode = 429; // HTTP 429 Too Many Requests
-});
+//Rate Limiting - Organized in extension method
+var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var rateLimitLogger = loggerFactory.CreateLogger<Program>();
+builder.Services.AddCustomRateLimiting(builder.Environment, builder.Configuration, rateLimitLogger);
 
 builder.Services.AddCors(options =>
 {
