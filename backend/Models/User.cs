@@ -9,7 +9,6 @@ namespace backend.Models
         public string DisplayName { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
-        public DateTime CreatedAtLocal { get; set; }
 
         //Email verification
         public bool EmailVerified { get; set; } = false;
