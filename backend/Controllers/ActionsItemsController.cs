@@ -2,11 +2,13 @@ using backend.Dtos.ActionItems;
 using backend.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/actionitems")]
 [Authorize]
+[EnableRateLimiting("ActionItems")]
 public class ActionItemsController : ControllerBase
 {
     private readonly IActionItemService _actionItemService;

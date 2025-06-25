@@ -7,12 +7,14 @@ using backend.Services.Interfaces;
 using Backend.Dtos.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace backend.Controllers.Auth;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("Auth")]
 public class AuthController : ControllerBase
 {
     private readonly IUserService _userService;
