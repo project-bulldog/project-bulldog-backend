@@ -51,8 +51,7 @@ public class AuthController : ControllerBase
             {
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
-                Password = dto.Password,
-                PhoneNumber = dto.PhoneNumber
+                Password = dto.Password
             });
 
             try
