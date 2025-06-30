@@ -71,7 +71,6 @@ namespace backend.Services.Implementations
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
                 PasswordHash = hashedPassword,
-                PhoneNumber = dto.PhoneNumber,
                 TwoFactorEnabled = dto.EnableTwoFactor,
                 CreatedAtUtc = utcNow
             };
@@ -102,7 +101,6 @@ namespace backend.Services.Implementations
                 Email = dto.Email,
                 DisplayName = dto.DisplayName,
                 PasswordHash = hashedPassword,
-                PhoneNumber = dto.PhoneNumber,
                 TwoFactorEnabled = dto.EnableTwoFactor,
                 CreatedAtUtc = utcNow
             };
