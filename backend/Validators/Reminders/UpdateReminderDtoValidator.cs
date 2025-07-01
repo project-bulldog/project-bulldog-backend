@@ -14,5 +14,8 @@ public class UpdateReminderDtoValidator : AbstractValidator<UpdateReminderDto>
         RuleFor(x => x.ReminderTime)
             .Must((dto, reminderTime) => reminderTime > DateTime.UtcNow.AddSeconds(-10))
             .WithMessage("Reminder time must be at least 1 second in the future.");
+
+        RuleFor(x => x.ActionItemId)
+            .NotEmpty().WithMessage("ActionItem ID is required.");
     }
 }

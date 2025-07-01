@@ -1,5 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace backend.Dtos.Reminders
 {
     public class CreateReminderDto
@@ -8,6 +6,6 @@ namespace backend.Dtos.Reminders
 
         public DateTime ReminderTime { get; set; }
 
-        public Guid? ActionItemId { get; set; } // Optional association
+        public Guid ActionItemId { get; set; }
     }
 }
