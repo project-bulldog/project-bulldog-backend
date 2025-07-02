@@ -37,16 +37,21 @@ public class ReminderProcessor : IReminderProcessor
             .Where(r => !r.IsSent && r.ReminderTime <= now && r.SendAttempts < r.MaxSendAttempts)
             .ToListAsync(cancellationToken);
 
+        _logger.LogInformation("🔍 Found {Count} due reminders to process", dueReminders.Count);
+
         foreach (var reminder in dueReminders)
         {
+            _logger.LogInformation("🔄 Processing reminder {ReminderId} for user {UserId}", reminder.Id, reminder.UserId);
             try
             {
                 if (await ShouldRecalculateForDstAsync(reminder, now))
                 {
+                    _logger.LogInformation("⏰ DST recalculation triggered for reminder {ReminderId}, skipping processing", reminder.Id);
                     await RecalculateReminderForDstAsync(reminder, now);
                     continue;
                 }
 
+                _logger.LogInformation("📤 Sending reminder {ReminderId} to user {UserId}", reminder.Id, reminder.UserId);
                 await _notificationService.SendReminderAsync(
                     reminder.UserId,
                     "You have a reminder",
@@ -98,13 +103,16 @@ public class ReminderProcessor : IReminderProcessor
             var currentReminderTimeUtc = reminder.ReminderTime;
 
             var diff = Math.Abs((expectedReminderTimeUtc - currentReminderTimeUtc).TotalMinutes);
+            _logger.LogInformation("🕐 DST Check - ReminderId: {ReminderId}, Expected: {Expected}, Current: {Current}, Diff: {Diff}",
+                reminder.Id, expectedReminderTimeUtc, currentReminderTimeUtc, diff);
             if (diff > 1)
             {
+                _logger.LogInformation("🕐 DST recalculation needed for reminder {ReminderId}", reminder.Id);
                 _logger.LogInformation("🕐 DST recalculation needed for reminder {ReminderId}: expected {Expected} UTC, current {Current} UTC (diff: {Diff} min)",
                     reminder.Id, expectedReminderTimeUtc, currentReminderTimeUtc, diff);
                 return true;
             }
-
+            _logger.LogInformation("🕐 No DST recalculation needed for reminder {ReminderId}", reminder.Id);
             return false;
         }
         catch (Exception ex)

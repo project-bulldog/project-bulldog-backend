@@ -16,7 +16,6 @@ public class CreateReminderDtoValidator : AbstractValidator<CreateReminderDto>
             .WithMessage("Reminder time must be at least 1 second in the future.");
 
         RuleFor(x => x.ActionItemId)
-            .Must(id => id == null || id != Guid.Empty)
-            .WithMessage("Invalid ActionItem ID.");
+            .NotEmpty().WithMessage("ActionItem ID is required.");
     }
 }

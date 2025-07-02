@@ -53,13 +53,31 @@ public class ReminderProcessorTests : IDisposable
     public async Task ProcessDueRemindersAsync_UpdatesIsSent_ForDueReminders()
     {
         // Arrange
+        var now = DateTime.UtcNow;
+        now = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
         var userId = Guid.NewGuid();
+        var actionItemId = Guid.NewGuid();
+        var dueAt = now.AddMinutes(1); // Due in 1 minute
+        var reminderMinutesBeforeDue = 1; // Reminder 1 minute before due
+        var expectedReminderTime = dueAt.AddMinutes(-reminderMinutesBeforeDue); // This is 'now'
+        var reminderTime = expectedReminderTime.AddSeconds(-1); // 1 second overdue
+
+        var actionItem = new ActionItem
+        {
+            Id = actionItemId,
+            SummaryId = Guid.NewGuid(),
+            Text = "Test action item",
+            DueAt = dueAt,
+            ShouldRemind = true,
+            ReminderMinutesBeforeDue = reminderMinutesBeforeDue
+        };
         var reminder1 = new Reminder
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            ActionItemId = actionItemId,
             Message = "Test reminder 1",
-            ReminderTime = DateTime.UtcNow.AddMinutes(-1),
+            ReminderTime = reminderTime,
             IsSent = false,
             MaxSendAttempts = 3
         };
@@ -67,14 +85,20 @@ public class ReminderProcessorTests : IDisposable
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            ActionItemId = actionItemId,
             Message = "Test reminder 2",
-            ReminderTime = DateTime.UtcNow.AddMinutes(10),
+            ReminderTime = expectedReminderTime.AddMinutes(10), // 10 minutes in the future
             IsSent = false,
             MaxSendAttempts = 3
         };
 
+        _context.ActionItems.Add(actionItem);
         _context.Reminders.AddRange(reminder1, reminder2);
         await _context.SaveChangesAsync();
+
+        // Set up user service mock to return a user with UTC timezone
+        _userServiceMock.Setup(x => x.GetUserEntityAsync(userId))
+            .ReturnsAsync(new User { Id = userId, TimeZoneId = "UTC" });
 
         var notificationMock = new Mock<INotificationService>();
         notificationMock
@@ -99,20 +123,42 @@ public class ReminderProcessorTests : IDisposable
     {
         // Arrange
         var now = DateTime.UtcNow;
+        now = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
         var userId = Guid.NewGuid();
+        var actionItemId = Guid.NewGuid();
+        var dueAt = now.AddMinutes(1); // Due in 1 minute
+        var reminderMinutesBeforeDue = 1; // Reminder 1 minute before due
+        var expectedReminderTime = dueAt.AddMinutes(-reminderMinutesBeforeDue); // This is 'now'
+        var reminderTime = expectedReminderTime.AddSeconds(-1); // 1 second overdue
+
+        var actionItem = new ActionItem
+        {
+            Id = actionItemId,
+            SummaryId = Guid.NewGuid(),
+            Text = "Test action item",
+            DueAt = dueAt,
+            ShouldRemind = true,
+            ReminderMinutesBeforeDue = reminderMinutesBeforeDue
+        };
         var reminder = new Reminder
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            ActionItemId = actionItemId,
             Message = "Success test",
-            ReminderTime = now.AddMinutes(-1),
+            ReminderTime = reminderTime,
             IsSent = false,
             SendAttempts = 0,
             MaxSendAttempts = 3
         };
 
+        _context.ActionItems.Add(actionItem);
         _context.Reminders.Add(reminder);
         await _context.SaveChangesAsync();
+
+        // Set up user service mock to return a user with UTC timezone
+        _userServiceMock.Setup(x => x.GetUserEntityAsync(userId))
+            .ReturnsAsync(new User { Id = userId, TimeZoneId = "UTC" });
 
         var notificationMock = new Mock<INotificationService>();
         notificationMock
@@ -137,20 +183,41 @@ public class ReminderProcessorTests : IDisposable
     {
         // Arrange
         var now = DateTime.UtcNow;
+        now = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
         var userId = Guid.NewGuid();
+        var actionItemId = Guid.NewGuid();
+        var dueAt = now.AddMinutes(1); // Due in 1 minute
+        var reminderMinutesBeforeDue = 1; // Reminder 1 minute before due
+        var expectedReminderTime = dueAt.AddMinutes(-reminderMinutesBeforeDue); // This is 'now'
+        var reminderTime = expectedReminderTime.AddSeconds(-1); // 1 second overdue
+        var actionItem = new ActionItem
+        {
+            Id = actionItemId,
+            SummaryId = Guid.NewGuid(),
+            Text = "Test action item",
+            DueAt = dueAt,
+            ShouldRemind = true,
+            ReminderMinutesBeforeDue = reminderMinutesBeforeDue
+        };
         var reminder = new Reminder
         {
             Id = Guid.NewGuid(),
             UserId = userId,
+            ActionItemId = actionItemId,
             Message = "Failure test",
-            ReminderTime = now.AddMinutes(-1),
+            ReminderTime = reminderTime, // Just overdue
             IsSent = false,
             SendAttempts = 0,
             MaxSendAttempts = 3
         };
 
+        _context.ActionItems.Add(actionItem);
         _context.Reminders.Add(reminder);
         await _context.SaveChangesAsync();
+
+        // Set up user service mock to return a user with UTC timezone
+        _userServiceMock.Setup(x => x.GetUserEntityAsync(userId))
+            .ReturnsAsync(new User { Id = userId, TimeZoneId = "UTC" });
 
         var notificationMock = new Mock<INotificationService>();
         notificationMock
@@ -159,11 +226,29 @@ public class ReminderProcessorTests : IDisposable
 
         var processor = new ReminderProcessor(_context, _loggerMock.Object, notificationMock.Object, _telemetryClient, _userServiceMock.Object);
 
+        // Debug: Check if reminder should be found by the query
+        var dueReminders = await _context.Reminders
+            .Where(r => !r.IsSent && r.ReminderTime <= now && r.SendAttempts < r.MaxSendAttempts)
+            .ToListAsync();
+        Console.WriteLine($"[TEST DEBUG] Before processing - Found {dueReminders.Count} due reminders");
+        Console.WriteLine($"[TEST DEBUG] Current time: {now:o}");
+        Console.WriteLine($"[TEST DEBUG] Reminder time: {reminder.ReminderTime:o}");
+        Console.WriteLine($"[TEST DEBUG] Is reminder due? {reminder.ReminderTime <= now}");
+
         // Act
         await processor.ProcessDueRemindersAsync();
 
+        // Debug: Check what reminders exist in the database
+        var allReminders = await _context.Reminders.ToListAsync();
+        Console.WriteLine($"[TEST DEBUG] Total reminders in DB: {allReminders.Count}");
+        foreach (var r in allReminders)
+        {
+            Console.WriteLine($"[TEST DEBUG] Reminder {r.Id}: IsSent={r.IsSent}, SendAttempts={r.SendAttempts}, ReminderTime={r.ReminderTime:o}, MaxAttempts={r.MaxSendAttempts}");
+        }
+
         // Assert
         var updated = await _context.Reminders.FindAsync(reminder.Id);
+        Console.WriteLine($"[TEST DEBUG] After processing: IsSent={updated?.IsSent}, SendAttempts={updated?.SendAttempts}, SentAt={updated?.SentAt}, ReminderTime={updated?.ReminderTime:o}");
         Assert.NotNull(updated);
         Assert.False(updated.IsSent);
         Assert.Null(updated.SentAt);

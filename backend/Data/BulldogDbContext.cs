@@ -67,7 +67,7 @@ namespace backend.Data
                     entity.HasOne(r => r.ActionItem)
                           .WithMany()
                           .HasForeignKey(r => r.ActionItemId)
-                          .OnDelete(DeleteBehavior.SetNull);
+                          .OnDelete(DeleteBehavior.Cascade); // Delete reminders if action item is deleted
 
                     // Properties
                     entity.Property(r => r.Message)

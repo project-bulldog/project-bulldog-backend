@@ -3,7 +3,6 @@ namespace backend.Models
     public class Reminder
     {
         public Guid Id { get; set; }
-
         public Guid UserId { get; set; }
         public User User { get; set; } = null!;
 
@@ -17,8 +16,7 @@ namespace backend.Models
         public int SendAttempts { get; set; } = 0;
         public int MaxSendAttempts { get; set; } = 3;
 
-
-        public Guid? ActionItemId { get; set; }
-        public ActionItem? ActionItem { get; set; }
+        public Guid ActionItemId { get; set; }
+        public ActionItem ActionItem { get; set; } = null!;
     }
 }
