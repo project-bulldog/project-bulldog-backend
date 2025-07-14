@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using backend.Data;
@@ -11,9 +12,11 @@ using backend.Data;
 namespace backend.Migrations
 {
     [DbContext(typeof(BulldogDbContext))]
-    partial class BulldogDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250702041102_UpdateTimeZoneTypeOnFieldActionItem")]
+    partial class UpdateTimeZoneTypeOnFieldActionItem
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -135,12 +138,6 @@ namespace backend.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMissed")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsSent")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -161,9 +158,6 @@ namespace backend.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("SnoozedUntil")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UserId")

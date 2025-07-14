@@ -30,7 +30,7 @@ public class ActionItemsController : ControllerBase
     }
 
     // GET: api/actionitems/{id}
-    [HttpGet("{id}")]
+    [HttpGet("{id:guid}")]
     public async Task<ActionResult<ActionItemDto>> GetActionItem(Guid id)
     {
         _logger.LogInformation("Fetching action item with id {Id}", id);
@@ -55,7 +55,7 @@ public class ActionItemsController : ControllerBase
     }
 
     // PUT: api/actionitems/{id}
-    [HttpPut("{id}")]
+    [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateActionItem(Guid id, UpdateActionItemDto itemDto)
     {
         var updateResult = await _actionItemService.UpdateActionItemAsync(id, itemDto);
@@ -69,23 +69,49 @@ public class ActionItemsController : ControllerBase
     }
 
     // DELETE: api/actionitems/{id}
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteActionItem(Guid id)
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> SoftDeleteActionItem(Guid id)
     {
-        _logger.LogInformation("Deleting action item with id {Id}", id);
-        var deleteResult = await _actionItemService.DeleteActionItemAsync(id);
-
-        if (!deleteResult)
+        try
+        {
+            await _actionItemService.SoftDeleteActionItemAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
         {
             _logger.LogWarning("Delete failed: action item with id {Id} not found", id);
             return NotFound();
         }
+        catch (UnauthorizedAccessException)
+        {
+            _logger.LogWarning("Delete failed: unauthorized attempt to delete action item {Id}", id);
+            return Forbid();
+        }
+    }
 
-        return NoContent();
+    // PATCH: api/actionitems/{id}/restore
+    [HttpPatch("{id:guid}/restore")]
+    public async Task<IActionResult> RestoreActionItem(Guid id)
+    {
+        try
+        {
+            await _actionItemService.RestoreActionItemAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            _logger.LogWarning("Restore failed: action item with id {Id} not found", id);
+            return NotFound();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _logger.LogWarning("Restore failed: unauthorized attempt to restore action item {Id}", id);
+            return Forbid();
+        }
     }
 
     // PATCH: api/actionitems/{id}/toggle
-    [HttpPatch("{id}/toggle")]
+    [HttpPatch("{id:guid}/toggle")]
     public async Task<IActionResult> ToggleDone(Guid id)
     {
         _logger.LogInformation("Toggling done status for action item with id {Id}", id);

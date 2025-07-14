@@ -65,9 +65,10 @@ namespace backend.Data
                           .OnDelete(DeleteBehavior.Cascade); // Delete reminders if user is deleted
 
                     entity.HasOne(r => r.ActionItem)
-                          .WithMany()
-                          .HasForeignKey(r => r.ActionItemId)
-                          .OnDelete(DeleteBehavior.Cascade); // Delete reminders if action item is deleted
+                        .WithMany()
+                        .HasForeignKey(r => r.ActionItemId)
+                        .OnDelete(DeleteBehavior.Cascade) // Delete reminders if action item is deleted
+                        .IsRequired(false);
 
                     // Properties
                     entity.Property(r => r.Message)
@@ -94,6 +95,12 @@ namespace backend.Data
 
                 entity.Property(ai => ai.IsDone)
                       .IsRequired();
+
+                entity.Property(ai => ai.IsDeleted)
+                    .HasDefaultValue(false);
+                entity.Property(ai => ai.DeletedAt)
+                    .HasColumnType("timestamp with time zone");
+                entity.HasQueryFilter(ai => !ai.IsDeleted);
 
                 entity.HasOne(ai => ai.Summary)
                       .WithMany(s => s.ActionItems)

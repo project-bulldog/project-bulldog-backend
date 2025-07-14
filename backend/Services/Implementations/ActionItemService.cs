@@ -96,9 +96,8 @@ public class ActionItemService : IActionItemService
         };
 
         _context.ActionItems.Add(item);
-        await _context.SaveChangesAsync();
 
-        // 🔔 Generate reminder if needed
+        // 🔔 Conditionally generate reminder
         if (item.DueAt.HasValue && item.ShouldRemind)
         {
             var offset = item.ReminderMinutesBeforeDue ?? 60;
@@ -118,14 +117,13 @@ public class ActionItemService : IActionItemService
             };
 
             _context.Reminders.Add(reminder);
-            await _context.SaveChangesAsync();
         }
+
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation("Created action item {Id}", item.Id);
         return ActionItemMapper.ToDto(item);
     }
-
-
 
     public async Task<bool> UpdateActionItemAsync(Guid id, UpdateActionItemDto itemDto)
     {
@@ -146,38 +144,14 @@ public class ActionItemService : IActionItemService
         item.ShouldRemind = itemDto.ShouldRemind;
         item.ReminderMinutesBeforeDue = itemDto.ReminderMinutesBeforeDue;
 
-        var existingReminder = await _context.Reminders.FirstOrDefaultAsync(r => r.ActionItemId == item.Id);
-
         if (item.DueAt.HasValue && item.ShouldRemind)
         {
-            var offset = item.ReminderMinutesBeforeDue ?? 60;
             var user = await _userService.GetUserEntityAsync(CurrentUserId);
-            var reminderTime = CalculateReminderTime(item.DueAt.Value, offset, user?.TimeZoneId);
-
-            if (existingReminder != null)
-            {
-                existingReminder.ReminderTime = reminderTime;
-                existingReminder.Message = $"Reminder: {item.Text}";
-                existingReminder.IsSent = false;
-                existingReminder.SendAttempts = 0;
-            }
-            else
-            {
-                _context.Reminders.Add(new Reminder
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = item.Summary!.UserId,
-                    ActionItemId = item.Id,
-                    ReminderTime = reminderTime,
-                    Message = $"Reminder: {item.Text}",
-                    MaxSendAttempts = 3,
-                    IsSent = false
-                });
-            }
+            await UpsertReminderAsync(item, user);
         }
-        else if (existingReminder != null)
+        else
         {
-            _context.Reminders.Remove(existingReminder);
+            await RemoveReminderAsync(item.Id);
         }
 
         try
@@ -193,41 +167,60 @@ public class ActionItemService : IActionItemService
         }
     }
 
-
-
-    public async Task<bool> DeleteActionItemAsync(Guid id)
+    public async Task SoftDeleteActionItemAsync(Guid id)
     {
-        _logger.LogInformation("Deleting action item {Id}", id);
+        var ai = await _context.ActionItems
+            .Include(x => x.Summary)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
 
-        var item = await _context.ActionItems
-            .Include(ai => ai.Summary)
-            .FirstOrDefaultAsync(ai => ai.Id == id && ai.Summary!.UserId == CurrentUserId);
+        if (ai == null)
+            throw new KeyNotFoundException($"ActionItem {id} not found");
 
-        if (item is null)
-        {
-            _logger.LogWarning("Delete failed: action item {Id} not found or not owned by user {UserId}", id, CurrentUserId);
-            return false;
-        }
+        if (ai.Summary?.UserId != CurrentUserId)
+            throw new UnauthorizedAccessException("You are not authorized to delete this action item.");
 
-        // 🔔 Remove associated reminder if one exists
-        var reminder = await _context.Reminders.FirstOrDefaultAsync(r => r.ActionItemId == id);
-        if (reminder is not null)
-        {
-            _context.Reminders.Remove(reminder);
-            _logger.LogInformation("Also deleted reminder {ReminderId} linked to action item {Id}", reminder.Id, id);
-        }
+        ai.IsDeleted = true;
+        ai.DeletedAt = DateTime.UtcNow;
 
-        _context.ActionItems.Remove(item);
+        var reminders = await _context.Reminders
+            .Where(r => r.ActionItemId == id)
+            .ToListAsync();
+
+        _context.Reminders.RemoveRange(reminders);
+
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Deleted action item {Id}", id);
-        return true;
+        _logger.LogInformation("Soft-deleted ActionItem {ActionItemId} and removed {ReminderCount} related reminders.", id, reminders.Count);
+    }
+
+
+    public async Task RestoreActionItemAsync(Guid id)
+    {
+        var ai = await _context.ActionItems
+            .IgnoreQueryFilters()
+            .Include(x => x.Summary)
+            .FirstOrDefaultAsync(x => x.Id == id);
+
+        if (ai == null)
+            throw new KeyNotFoundException($"ActionItem {id} not found");
+
+        if (ai.Summary?.UserId != CurrentUserId)
+            throw new UnauthorizedAccessException("You are not authorized to restore this action item.");
+
+        ai.IsDeleted = false;
+        ai.DeletedAt = null;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Restored ActionItem {ActionItemId} for user {UserId}", id, CurrentUserId);
     }
 
 
     public async Task<ActionItemDto?> ToggleDoneAsync(Guid id)
     {
         _logger.LogInformation("Toggling done status for action item {Id}", id);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
 
         var item = await _context.ActionItems
             .Include(ai => ai.Summary)
@@ -240,12 +233,26 @@ public class ActionItemService : IActionItemService
         }
 
         item.IsDone = !item.IsDone;
-        await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Toggled IsDone for action item {Id} to {NewValue}", id, item.IsDone);
+        // Toggle reminder activation to match IsDone state
+        var reminders = await _context.Reminders
+            .Where(r => r.ActionItemId == id)
+            .ToListAsync();
+
+        foreach (var reminder in reminders)
+        {
+            reminder.IsActive = !item.IsDone;
+        }
+
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        _logger.LogInformation("Toggled IsDone for action item {Id} to {NewValue} and updated {ReminderCount} reminders.", id, item.IsDone, reminders.Count);
+
         return ActionItemMapper.ToDto(item);
     }
 
+    #region Private Methods
     private DateTime CalculateReminderTime(DateTime dueAtUtc, int offsetMinutes, string? userTimeZoneId)
     {
         try
@@ -265,4 +272,45 @@ public class ActionItemService : IActionItemService
         }
     }
 
+    private async Task UpsertReminderAsync(ActionItem item, User? user)
+    {
+        var existingReminder = await _context.Reminders.FirstOrDefaultAsync(r => r.ActionItemId == item.Id);
+        var offset = item.ReminderMinutesBeforeDue ?? 60;
+        var reminderTime = CalculateReminderTime(item.DueAt!.Value, offset, user?.TimeZoneId);
+
+        if (existingReminder != null)
+        {
+            existingReminder.ReminderTime = reminderTime;
+            existingReminder.Message = $"Reminder: {item.Text}";
+            existingReminder.IsSent = false;
+            existingReminder.SendAttempts = 0;
+        }
+        else
+        {
+            _context.Reminders.Add(new Reminder
+            {
+                Id = Guid.NewGuid(),
+                UserId = item.Summary!.UserId,
+                ActionItemId = item.Id,
+                ReminderTime = reminderTime,
+                Message = $"Reminder: {item.Text}",
+                MaxSendAttempts = 3,
+                IsSent = false
+            });
+        }
+    }
+
+    private async Task RemoveReminderAsync(Guid actionItemId)
+    {
+        var existingReminder = await _context.Reminders
+            .Where(r => r.ActionItemId == actionItemId)
+            .ToListAsync();
+
+        if (existingReminder.Any())
+        {
+            _context.Reminders.RemoveRange(existingReminder);
+        }
+    }
+
+    #endregion
 }

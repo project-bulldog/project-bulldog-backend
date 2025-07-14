@@ -6,6 +6,6 @@ namespace backend.Dtos.Reminders
 
         public DateTime ReminderTime { get; set; }
 
-        public Guid ActionItemId { get; set; }
+        public Guid? ActionItemId { get; set; }
     }
 }

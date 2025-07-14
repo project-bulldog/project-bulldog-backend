@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.SimpleEmail;
@@ -20,7 +19,6 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.IdentityModel.Tokens;
 
